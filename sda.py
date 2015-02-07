@@ -32,21 +32,25 @@ def sift(z):
   return whz_p,~whz_p
 
 def sda(z):
-  n_items = np.shape(z)[0]
-  n_feats = np.shape(z)[1]
-  if (n_items == 1):
-    return np.zeros(np.shape(z))
-  zi0p, zi0n = sift(z[:,0])
-  result = np.zeros(np.shape(z))
-  if (np.sum(zi0p) == 0) or (np.sum(zi0n) == 0):
-    if (n_feats > 1):
-      non_zero = z[:,1:n_feats]
-      result[:,1:n_feats] = sda(non_zero)
-  else:
-    result[:,0] = z[:,0]
-    pos = z[zi0p,1:n_feats]
-    neg = z[zi0n,1:n_feats]
-    result[zi0p,1:n_feats] = sda(pos)
-    result[zi0n,1:n_feats] = sda(neg)
-  return result
+    if (z==0).sum() > 0:
+        raise ValueError("SDA only works on fully specified matrices")
+    if z.shape[1] == 1 and not ((z[:,0]==-1).all() or (z[:,0]==1).all()):
+        raise ValueError("Matrix cannot be contrastively specified")
+    n_items = np.shape(z)[0]
+    n_feats = np.shape(z)[1]
+    if (n_items == 1):
+        return np.zeros(np.shape(z))
+    zi0p, zi0n = sift(z[:,0])
+    result = np.zeros(np.shape(z))
+    if (np.sum(zi0p) == 0) or (np.sum(zi0n) == 0):
+        if (n_feats > 1):
+            non_zero = z[:,1:n_feats]
+            result[:,1:n_feats] = sda(non_zero)
+    else:
+        result[:,0] = z[:,0]
+        pos = z[zi0p,1:n_feats]
+        neg = z[zi0n,1:n_feats]
+        result[zi0p,1:n_feats] = sda(pos)
+        result[zi0n,1:n_feats] = sda(neg)
+    return result
 
