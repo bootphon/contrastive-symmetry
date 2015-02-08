@@ -37,37 +37,44 @@ def read_inventories(fn, skipcols, lgcol_index, segcol_index,
     return inventories, features
 
 
-def num_zeroes(m):
-    return (m == 0).sum()
-
-
-def fill_zeroes_randomly(m):
-    n_zeroes = num_zeroes(m)
-    result = m.copy()
-    result[result == 0] = np.random.choice([-1, 1], n_zeroes)
+def remove_underspecified(inventory, fill_val):
+    cols_with_zeroes = np.any(inventory == 0, axis=0)
+    result = inventory.copy()
+    result[:,cols_with_zeroes] = fill_val
     return result
 
 
-def contrastive(inventory, feature_permutation, unanalyzable="fail",
-                max_tries=10000):
+def fill_underspecified(inventory, fill_val):
+    result = inventory.copy()
+    result[inventory == 0] = fill_val
+    return result
+
+
+def contrastive(inventory, feature_permutation):
     perm_in_std = feature_permutation["Index_of_Perm_in_Std"]
     std_in_perm = feature_permutation["Index_of_Std_in_Perm"]
     permuted_inventory = inventory["Feature_Table"][:, perm_in_std]
-    np.random.seed(1)  # always the same sequence for a given inv/perm
-    contrastive_inventory = None
-    i = 0
-    while i < max_tries:
-        zero_filled_permuted_inv = fill_zeroes_randomly(permuted_inventory)
+    try:
+        # First try entirely ignoring features which the feature table
+        # gives as zero; if they are only specified for some segments (i.e.,
+        # if this is actually a partly contrastive specification already)
+        # then using these features when the primary contrastive feature
+        # on which they depend hasn't been used already will lead to
+        # less meaningful results
+        permuted_without_arbitrary = remove_underspecified(permuted_inventory, -1)
+        contrastive_inventory = sda.sda(permuted_without_arbitrary)
+    except StandardError:
+        # If the inventory can't be specified contrastively in this way,
+        # then fall back on using those features, risking that they may
+        # be split on prematurely (the correct solution, not implemented
+        # here, is to take the first strategy, removal, when the 0 feature
+        # scopes above its parent - or simply bar such permutations - and
+        # the second strategy, arbitrary filling, when the 0 feature scopes below)
         try:
-            contrastive_inventory = sda.sda(zero_filled_permuted_inv)
-            break
+            permuted_filled = fill_underspecified(permuted_inventory, -1)
+            contrastive_inventory = sda.sda(permuted_filled)
         except StandardError:
-            if unanalyzable == "fail" or num_zeroes(permuted_inventory) == 0:
-                return None
-        i += 1
-    if contrastive_inventory is None:
-        return None
-    np.random.seed()
+            return None
     contrastive_inventory_std_order = contrastive_inventory[:, std_in_perm]
     contrastive_feature_indices = sda.contrastive_features(
         contrastive_inventory)
@@ -85,7 +92,8 @@ def summary_colnames(features):
     result = ["language", "nseg", "sb", "ncfeat", "order"]
     for feature in features:
         result += ["sb_" + feature, "nseg_" + feature, "cfdepth_" + feature,
-                   "cfheight_" + feature, "sb_by_cfheight_" + feature]
+                   "cfheight_" + feature, "sb_by_cfheight_" + feature,
+                   "balance_" + feature, "balance_by_cfheight_" + feature]
     return result
 
 
@@ -111,7 +119,10 @@ def summary(inventory, features):
         result["cfdepth_" + feature_name] = cfeature_index
         cfheight = (len(cfeature_inds) - cfeature_index)
         result["cfheight_" + feature_name] = cfheight
-        result["sb_by_cfheight_" + feature_name] = sb_subtree / cfheight
+        result["sb_by_cfheight_" + feature_name] = sb_subtree / float(cfheight)
+        balance = sda.balance(feature_table[:,permuted_index])
+        result["balance_" + feature_name] = balance
+        result["balance_by_cfheight_" + feature_name] = balance / float(cfheight)
     return result
 
 
@@ -151,12 +162,6 @@ def create_parser():
     parser.add_argument('--permutation-seed', type=int, default=None,
                         help='fixed random seed for permutations (default: '
                         'variable)')
-    parser.add_argument('--feature-fill-seed', type=int, default=1,
-                        help='fixed random seed for filling unspecified features '
-                        '(default: 1)')
-    parser.add_argument('--max-reanalysis', type=int, default=10000,
-                        help='maximum number of times to try filling random '
-                        'feature values for unspecified features if SDA fails')
     parser.add_argument('--use-existing-tmp', type=bool, default=True,
                         help='if tmp directory exists, use any stats already '
                         'computed')
@@ -203,13 +208,11 @@ def write_summary(contr, fn, features, summary_colnames_f):
 
 
 def do_and_write_summary(inventory, feature_permutation, summary_colnames_f,
-                         features, feature_fill_seed, max_reanalysis, tmp_directory,
-                         use_existing_tmp):
+                         features, tmp_directory, use_existing_tmp):
     fn = tmp_filename(inventory, feature_permutation, args.tmp_directory)
     if use_existing_tmp and os.path.isfile(fn):
         return
-    c = contrastive(inventory, feature_permutation, feature_fill_seed,
-                    max_reanalysis)
+    c = contrastive(inventory, feature_permutation)
     write_summary(c, fn, features, summary_colnames_f)
 
 
@@ -241,17 +244,12 @@ if __name__ == '__main__':
             invs_perms += [(inventory, feature_permutation)]
     if args.jobs == 1:
         for (i, p) in invs_perms:
-            do_and_write_summary(i, p, summary_colnames_f,
-                                 features, args.feature_fill_seed,
-                                 args.max_reanalysis,
-                                 args.tmp_directory,
-                                 args.use_existing_tmp)
+            do_and_write_summary(i, p, summary_colnames_f, features,
+                                 args.tmp_directory, args.use_existing_tmp)
     else:
         from multiprocessing import Pool
         def do_and_write_summary_part((i,p)):
             do_and_write_summary(i, p, summary_colnames_f, features,
-                                                args.feature_fill_seed,
-                                                args.max_reanalysis,
                                                 args.tmp_directory,
                                                 args.use_existing_tmp)
         Pool(args.jobs).map(do_and_write_summary_part, invs_perms)
