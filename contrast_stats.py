@@ -21,8 +21,8 @@ def read_inventories(fn, skipcols, lgcol_index, segcol_index,
                      feature_value_npf=default_feature_value_npf):
     raw_table = pd.read_csv(fn, dtype=np.str)
     features = raw_table.columns.values[skipcols:]
-    segment_name_col = raw_table.ix[:,segcol_index]
-    language_name_col = raw_table.ix[:,lgcol_index]
+    segment_name_col = raw_table.ix[:, segcol_index]
+    language_name_col = raw_table.ix[:, lgcol_index]
     language_names = pd.unique(language_name_col)
     inventories = []
     for language_name in language_names:
@@ -40,7 +40,7 @@ def read_inventories(fn, skipcols, lgcol_index, segcol_index,
 def remove_underspecified(inventory, fill_val):
     cols_with_zeroes = np.any(inventory == 0, axis=0)
     result = inventory.copy()
-    result[:,cols_with_zeroes] = fill_val
+    result[:, cols_with_zeroes] = fill_val
     return result
 
 
@@ -61,7 +61,8 @@ def contrastive(inventory, feature_permutation):
         # then using these features when the primary contrastive feature
         # on which they depend hasn't been used already will lead to
         # less meaningful results
-        permuted_without_arbitrary = remove_underspecified(permuted_inventory, -1)
+        permuted_without_arbitrary = remove_underspecified(
+            permuted_inventory, -1)
         contrastive_inventory = sda.sda(permuted_without_arbitrary)
     except StandardError:
         # If the inventory can't be specified contrastively in this way,
@@ -69,12 +70,14 @@ def contrastive(inventory, feature_permutation):
         # be split on prematurely (the correct solution, not implemented
         # here, is to take the first strategy, removal, when the 0 feature
         # scopes above its parent - or simply bar such permutations - and
-        # the second strategy, arbitrary filling, when the 0 feature scopes below)
+        # the second strategy, arbitrary filling, when the 0 feature scopes
+        # below)
         try:
             permuted_filled = fill_underspecified(permuted_inventory, -1)
             contrastive_inventory = sda.sda(permuted_filled)
         except StandardError:
-            return None
+            return {"Language_Name": inventory["Language_Name"],
+                    "Feature_Permutation": feature_permutation}
     contrastive_inventory_std_order = contrastive_inventory[:, std_in_perm]
     contrastive_feature_indices = sda.contrastive_features(
         contrastive_inventory)
@@ -98,15 +101,19 @@ def summary_colnames(features):
 
 
 def summary(inventory, features):
+    result = {}
+    result["language"] = inventory["Language_Name"]
+    result["order"] = inventory["Feature_Permutation"]["Order_Name"]
+
+    if "Feature_Table_Perm" not in inventory:
+        return result
+
     cfeature_inds = inventory["Contrastive_Feature_Inds_Std"]
     feature_table = inventory["Feature_Table_Perm"]
 
-    result = {}
-    result["language"] = inventory["Language_Name"]
     result["nseg"] = feature_table.shape[0]
     result["sb"] = sda.sum_balance(feature_table)
     result["ncfeat"] = len(cfeature_inds)
-    result["order"] = inventory["Feature_Permutation"]["Order_Name"]
 
     for cfeature_index, feature_index in enumerate(cfeature_inds):
         feature_name = features[feature_index]
@@ -120,9 +127,10 @@ def summary(inventory, features):
         cfheight = (len(cfeature_inds) - cfeature_index)
         result["cfheight_" + feature_name] = cfheight
         result["sb_by_cfheight_" + feature_name] = sb_subtree / float(cfheight)
-        balance = sda.balance(feature_table[:,permuted_index])
+        balance = sda.balance(feature_table[:, permuted_index])
         result["balance_" + feature_name] = balance
-        result["balance_by_cfheight_" + feature_name] = balance / float(cfheight)
+        result["balance_by_cfheight_" + feature_name] = balance / \
+            float(cfheight)
     return result
 
 
@@ -192,7 +200,7 @@ def parse_args(arguments):
 
 def tmp_filename(inventory, feature_permutation, directory):
     basename = inventory["Language_Name"] + '_' + \
-                feature_permutation["Order_Name"] + ".stats"
+        feature_permutation["Order_Name"] + ".stats"
     return os.path.join(directory, basename)
 
 
@@ -248,10 +256,11 @@ if __name__ == '__main__':
                                  args.tmp_directory, args.use_existing_tmp)
     else:
         from multiprocessing import Pool
-        def do_and_write_summary_part((i,p)):
+
+        def do_and_write_summary_part((i, p)):
             do_and_write_summary(i, p, summary_colnames_f, features,
-                                                args.tmp_directory,
-                                                args.use_existing_tmp)
+                                 args.tmp_directory,
+                                 args.use_existing_tmp)
         Pool(args.jobs).map(do_and_write_summary_part, invs_perms)
 
     if args.output_file is None:
