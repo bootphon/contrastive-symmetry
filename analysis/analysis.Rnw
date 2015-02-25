@@ -1,0 +1,61 @@
+\documentclass{article}
+
+\usepackage{geometry}
+\geometry{letterpaper,margin=1in}
+\usepackage[english]{babel}
+\usepackage{fontspec}
+\defaultfontfeatures{Mapping=tex-text}
+\setmainfont[Path=/Library/Fonts/,
+             Ligatures=TeX,
+             ItalicFont=Times New Roman Italic.ttf,
+             BoldFont=Times New Roman Bold.ttf,
+             BoldItalicFont=Times New Roman Bold Italic.ttf
+             ]{Times New Roman.ttf}
+
+<<init, include=FALSE, cache=FALSE>>=
+library(plyr)
+library(ggplot2)
+source("read.R")
+source("plot.R")
+source("stats.R")
+source("collapse_to_min.R")
+@
+
+<<setup, include=FALSE, cache=FALSE>>=
+source("what_analysis.R")
+@
+
+<<read-input, include=FALSE, cache=FALSE>>=
+isym_detailed <- list()
+isym <- c()
+isym_min <- c()
+for (inv_type in names(INPUT_FILES)) {
+  d <- read_isym(INPUT_FILES[[inv_type]])
+  isym_detailed[[inv_type]] <- d
+  d <- isym_detailed[[inv_type]]
+  d$inv_type <- inv_type
+  isym <- rbind(isym, d[,c(isym_stat_columns, "inv_type")])
+  d_min <- collapse_ncfeat_to_min(d)
+  d_min$inv_type <- as.character(inv_type)
+  isym_min <- rbind(isym_min, d_min[,c(isym_min_stat_columns, "inv_type")])
+}
+@
+
+\begin{document}
+
+\title{Analysis of inventories}
+\maketitle
+
+
+<<plot-segments-over-features-whole,echo=FALSE,dev='pdf'>>=
+d <- isym_min[isym_min$inv_type %in% c("Whole", "Random_MatchWhole"),]
+d$inv_type <- factor(d$inv_type, labels=c("Random", "Natural"))
+plot_prevalence(d, "nseg_by_min_ncfeat", "inv_type",
+                   "Number of Segments/Number of Contrastive Features",
+                           "Inventory Type"
+                            , text_size=24, point_size=2.5
+                             )
+@
+
+
+\end{document}
