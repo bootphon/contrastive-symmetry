@@ -1,27 +1,33 @@
 import numpy as np
 
 
-def balance(z):
+def balance(z, norm=True):
     if (z[0] == 0):
         return 0
     zi0p, zi0n = sift(z)
     return abs(sum(zi0p) - sum(zi0n))
 
 
-def sum_balance(z):
+def sum_balance(z, norm=True):
     balance_top = balance(z[:, 0])
+
     if (np.shape(z)[1] == 1):
         result = balance_top
     else:
         zi0p, zi0n = sift(z[:, 0])
         tail = z[:, 1:np.shape(z)[1]]
         if (np.sum(zi0p) == 0) or (np.sum(zi0n) == 0):
-            result = balance_top + sum_balance(tail)
+            result = balance_top + sum_balance(tail, norm)
         else:
-            balancep = sum_balance(tail[zi0p, :])
-            balancen = sum_balance(tail[zi0n, :])
+            balancep = sum_balance(tail[zi0p, :], norm)
+            balancen = sum_balance(tail[zi0n, :], norm)
             result = balance_top + balancep + balancen
     return result
+
+def mean_balance(z, norm=True):
+    s = sum_balance(z, norm)
+    n = num_subtrees(z)
+    return s/n
 
 
 def num_segments(z):

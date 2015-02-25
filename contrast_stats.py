@@ -4,37 +4,12 @@ import sys
 import os
 
 import numpy as np
-import pandas as pd
 import sda
+import shutil
+from tmp_files import tmp_filename, create_tmp_directory
+from inventory_io import read_inventories
 
 __version__ = '0.0.1'
-
-default_feature_value_dict = {'+': 1, '-': -1, '0': 0}
-
-
-def default_feature_value_map(x):
-    return default_feature_value_dict[x]
-default_feature_value_npf = np.frompyfunc(default_feature_value_map, 1, 1)
-
-
-def read_inventories(fn, skipcols, lgcol_index, segcol_index,
-                     feature_value_npf=default_feature_value_npf):
-    raw_table = pd.read_csv(fn, dtype=np.str)
-    features = raw_table.columns.values[skipcols:]
-    segment_name_col = raw_table.ix[:, segcol_index]
-    language_name_col = raw_table.ix[:, lgcol_index]
-    language_names = pd.unique(language_name_col)
-    inventories = []
-    for language_name in language_names:
-        inventory_rows = language_name_col == language_name
-        raw_inventory_table = raw_table.ix[inventory_rows, features]
-        feature_table = feature_value_npf(raw_inventory_table).values
-        segment_names = segment_name_col[inventory_rows].values
-        inventory = {"Feature_Table": feature_table,
-                     "Language_Name": language_name,
-                     "Segment_Names": segment_names}
-        inventories.append(inventory)
-    return inventories, features
 
 
 def remove_underspecified(inventory, fill_val):
@@ -104,6 +79,10 @@ def summary(inventory, features):
     result = {}
     result["language"] = inventory["Language_Name"]
     result["order"] = inventory["Feature_Permutation"]["Order_Name"]
+    print inventory["Language_Name"]
+    print inventory["Feature_Permutation"]["Order_Name"]
+    print inventory["Feature_Table_Perm"]
+    print [features[i] for i in inventory["Feature_Permutation"]["Index_of_Perm_in_Std"]]
 
     if "Feature_Table_Perm" not in inventory:
         return result
@@ -173,12 +152,12 @@ def create_parser():
     parser.add_argument('--use-existing-tmp', type=bool, default=True,
                         help='if tmp directory exists, use any stats already '
                         'computed')
-    parser.add_argument('inventories_location', metavar='inventories location',
+    parser.add_argument('inventories_location',
                         help='csv containing all inventories')
-    parser.add_argument('tmp_directory', metavar='tmp directory',
+    parser.add_argument('tmp_directory',
                         help='directory to store temporary csv files which '
                         'are merged at the end')
-    parser.add_argument('output_file', metavar='output file',
+    parser.add_argument('output_file', 
                         help='output file (default: stdout)', nargs='?',
                         default=None)
     return parser
@@ -198,12 +177,6 @@ def parse_args(arguments):
     return args
 
 
-def tmp_filename(inventory, feature_permutation, directory):
-    basename = inventory["Language_Name"] + '_' + \
-        feature_permutation["Order_Name"] + ".stats"
-    return os.path.join(directory, basename)
-
-
 def write_summary(contr, fn, features, summary_colnames_f):
     s = summary(contr, features)
     with open(fn, 'w') as hf:
@@ -217,22 +190,13 @@ def write_summary(contr, fn, features, summary_colnames_f):
 
 def do_and_write_summary(inventory, feature_permutation, summary_colnames_f,
                          features, tmp_directory, use_existing_tmp):
-    fn = tmp_filename(inventory, feature_permutation, args.tmp_directory)
+    fn = tmp_filename((inventory['Language_Name'],
+                       feature_permutation['Order_Name']), 'stats', tmp_directory)
     if use_existing_tmp and os.path.isfile(fn):
         return
     c = contrastive(inventory, feature_permutation)
     write_summary(c, fn, features, summary_colnames_f)
 
-
-def create_tmp_directory(dirname, use_existing_tmp):
-    if use_existing_tmp and os.path.isdir(dirname):
-        return
-    try:
-        os.mkdir(dirname)
-    except OSError, e:
-        sys.stderr.write("error creating temp directory " + dirname + ": " +
-                         str(e))
-        exit()
 
 if __name__ == '__main__':
     args = parse_args(sys.argv[1:])
@@ -269,7 +233,10 @@ if __name__ == '__main__':
         hf_out = open(args.output_file, 'w')
     hf_out.write(','.join(summary_colnames(features)) + '\n')
     for (i, p) in invs_perms:
-        hf_tmp = open(tmp_filename(i, p, args.tmp_directory), 'r')
+        hf_tmp = open(tmp_filename((i['Language_Name'], p['Order_Name']),
+                                   'stats', args.tmp_directory), 'r')
         hf_out.write(hf_tmp.readline() + '\n')
         hf_tmp.close()
     hf_out.close()
+
+    shutil.rmtree(args.tmp_directory)
