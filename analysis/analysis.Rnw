@@ -15,10 +15,10 @@
 <<init, include=FALSE, cache=FALSE>>=
 library(plyr)
 library(ggplot2)
-source("read.R")
-source("plot.R")
-source("stats.R")
-source("collapse_to_min.R")
+source("../src/analysis/read.R")
+source("../src/analysis/plot.R")
+source("../src/analysis/stats.R")
+source("../src/analysis/collapse_to_min.R")
 @
 
 <<setup, include=FALSE, cache=FALSE>>=
