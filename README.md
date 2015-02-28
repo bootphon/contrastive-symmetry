@@ -7,7 +7,7 @@ relevant sets of slides are included (documenting different stages in our
 understanding of the research)
 
 To generate random baseline inventories
---------------------------------------------
+---------------------------------------
 
 python src/contrastive-symmetry/generate\_random.py --all --outdir=data
   --initial-seed=1 --jobs=100 data/inv.csv data/stop.csv data/vowel.csv
