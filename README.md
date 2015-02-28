@@ -7,7 +7,7 @@ relevant sets of slides are included (documenting different stages in our
 understanding of the research)
 
 To (re-)generate random baseline inventories
-============================================
+--------------------------------------------
 
 python src/contrastive-symmetry/generate\_random.py --all --outdir=data \
   --initial-seed=1 --jobs=100 data/inv.csv data/stop.csv data/vowel.csv \
@@ -24,7 +24,7 @@ python src/contrastive-symmetry/generate\_random.py --all --outdir=data \
   set
   
 To compute contrastive specification statistics
-===============================================
+-----------------------------------------------
 
 python src/contrastive-symmetry/contrast\_stats.py --outdir=contrast\_stats \
   --permutation-seed=1 --jobs=100 data/\*.csv
@@ -36,7 +36,7 @@ python src/contrastive-symmetry/contrast\_stats.py --outdir=contrast\_stats \
   
 
 FILES
-=====
+-----
 
   * **docs/ijn\_102914.pdf:** Slides 10/29/2014
   * **docs/paris8\_020415.pdf:** Slides 02/04/2015
