@@ -230,7 +230,7 @@ def create_inventories(size_table, sample_fn, tmpdir, initial_seed, n_jobs):
     f = Memory(cachedir=tmpdir, verbose=False).cache(create_inventory)
     result = Parallel(n_jobs=n_jobs)(delayed(f)(i, sample_fn)
                                      for i in inventory_templates)
-    shutil.rmtree(args.tmp_directory)
+    shutil.rmtree(tmpdir)
     return result
 
 
