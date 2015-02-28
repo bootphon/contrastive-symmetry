@@ -9,8 +9,8 @@ understanding of the research)
 To (re-)generate random baseline inventories
 ============================================
 
-python generate_random.py --all --outdir=data/ --initial-seed=1
-  --tmpdir=tmp --jobs=100 data/inv.csv data/stop.csv data/vowel.csv
+python src/contrastive-symmetry/generate\_random.py --all --outdir=data \
+  --initial-seed=1 --jobs=100 data/inv.csv data/stop.csv data/vowel.csv \
   data/cons.csv 
 
   * use --matrix, --feature, --segment, or some combination, instead of
@@ -22,6 +22,18 @@ python generate_random.py --all --outdir=data/ --initial-seed=1
   baseline type) pair goes through the same fixed sequence, starting at
   initial-seed, if initial-seed is specified; otherwise the seed is never
   set
+  
+To compute contrastive specification statistics
+===============================================
+
+python src/contrastive-symmetry/contrast\_stats.py --outdir=contrast\_stats \
+  --permutation-seed=1 --jobs=100 data/\*.csv
+
+  * replace inventory source file(s) with whatever files you want to base
+  the stats on
+  * default number of permutations is 100; random with a seed that can be
+  fixed (as here, set to 1) or variable
+  
 
 FILES
 =====

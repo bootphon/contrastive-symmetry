@@ -8,7 +8,6 @@ from stats import size_table, segment_value_table, feature_table
 from util import stem_fn
 from joblib import Parallel, delayed
 from joblib.memory import Memory
-import shutil
 
 
 __version__ = '0.0.1'
@@ -21,7 +20,6 @@ FEATURE_SUFFIX = "_random_feature.csv"
 def create_parser():
     """Return command-line parser."""
     parser = argparse.ArgumentParser()
-    # TO ADD: output_dir, inventories_locations
     parser.add_argument('--version', action='version',
                         version='%(prog)s ' + __version__)
     parser.add_argument('--jobs', type=int, default=1,
@@ -42,10 +40,9 @@ def create_parser():
     parser.add_argument('--feature', action='store_true')
     parser.add_argument('--segment', action='store_true')
     parser.add_argument('--all', action='store_true')
-    parser.add_argument('tmp_directory',
-                        help='directory to store temporary csv files which '
-                        'are merged at the end')
-    parser.add_argument('output_dir', help='output directory')
+    parser.add_argument('--tmp_directory', default='/tmp',
+                        help='directory to store temporary files')
+    parser.add_argument('--outdir', help='output directory', default='.')
     parser.add_argument('inventories_locations', help='list of csv files'
                         'containing independent sets of inventories; '
                         'each set of inventories will be paired with its own'
@@ -217,7 +214,7 @@ if __name__ == "__main__":
                                              args.seg_colindex)
                             for l in args.inventories_locations]
     all_sizes = [size_table(ii[0]) for ii in all_inventory_tuples]
-    all_output_fn_prefixes = [os.path.join(args.output_dir, stem_fn(l))
+    all_output_fn_prefixes = [os.path.join(args.outdir, stem_fn(l))
                               for l in args.inventories_locations]
 
     for i, inventory_tuple in enumerate(all_inventory_tuples):

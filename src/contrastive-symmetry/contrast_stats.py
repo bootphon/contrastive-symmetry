@@ -5,11 +5,14 @@ import os
 
 import numpy as np
 import sda
-import shutil
-from tmp_files import tmp_filename, create_tmp_directory
 from inventory_io import read_inventories
+from joblib.memory import Memory
+from joblib.parallel import Parallel, delayed
+from util import stem_fn
 
 __version__ = '0.0.1'
+
+CSTATS_SUFFIX = "_cstats.csv"
 
 
 def remove_underspecified(inventory, fill_val):
@@ -79,10 +82,6 @@ def summary(inventory, features):
     result = {}
     result["language"] = inventory["Language_Name"]
     result["order"] = inventory["Feature_Permutation"]["Order_Name"]
-    print inventory["Language_Name"]
-    print inventory["Feature_Permutation"]["Order_Name"]
-    print inventory["Feature_Table_Perm"]
-    print [features[i] for i in inventory["Feature_Permutation"]["Index_of_Perm_in_Std"]]
 
     if "Feature_Table_Perm" not in inventory:
         return result
@@ -113,6 +112,12 @@ def summary(inventory, features):
     return result
 
 
+def cstats(inventory, permutation, features):
+    ci = contrastive(inventory, permutation)
+    result = summary(ci, features)
+    return result
+
+
 def generate_permutations(n, seed, features):
     permutations = []
     random.seed(seed)
@@ -127,6 +132,42 @@ def generate_permutations(n, seed, features):
         permutations.append(permutation)
     random.seed()
     return permutations
+
+
+def write_cstat_summary(cstat_summary, fn, features, append=False):
+    if append:
+        mode = 'a'
+    else:
+        mode = 'w'
+    colnames_in_order = summary_colnames(features)
+    with open(fn, mode) as hf:
+        prefix = ''
+        for colname in colnames_in_order:
+            hf.write(prefix)
+            if colname in cstat_summary:
+                hf.write(str(cstat_summary[colname]))
+            prefix = ','
+        hf.write('\n')
+
+
+def map_cstats(invs_perms, features, tmpdir, n_jobs):
+    mem = Memory(cachedir=tmpdir, verbose=False)
+    f = mem.cache(cstats)
+    result = Parallel(n_jobs=n_jobs)(delayed(f)(i, p, features)
+                                     for (i, p) in invs_perms)
+    mem.clear(warn=False)
+    return result
+
+
+def write_cstat_summaries(out_fn, summaries, features):
+    out_dir = os.path.dirname(out_fn)
+    if not os.path.isdir(out_dir):
+        os.makedirs(out_dir)
+    hf_out = open(out_fn, 'w')
+    hf_out.write(','.join(summary_colnames(features)) + '\n')
+    hf_out.close()
+    for s in summaries:
+        write_cstat_summary(s, out_fn, features, append=True)
 
 
 def create_parser():
@@ -149,17 +190,13 @@ def create_parser():
     parser.add_argument('--permutation-seed', type=int, default=None,
                         help='fixed random seed for permutations (default: '
                         'variable)')
-    parser.add_argument('--use-existing-tmp', type=bool, default=True,
-                        help='if tmp directory exists, use any stats already '
-                        'computed')
-    parser.add_argument('inventories_location',
-                        help='csv containing all inventories')
-    parser.add_argument('tmp_directory',
-                        help='directory to store temporary csv files which '
-                        'are merged at the end')
-    parser.add_argument('output_file', 
-                        help='output file (default: stdout)', nargs='?',
-                        default=None)
+    parser.add_argument('--tmp_directory', default='/tmp',
+                        help='directory to store temporary files')
+    parser.add_argument('--outdir', help='output directory', default='.')
+    parser.add_argument('inventories_locations', help='list of csv files'
+                        'containing independent sets of inventories; '
+                        'each set of inventories will be paired with its own'
+                        'contrastive stats summary file', nargs='+')
     return parser
 
 
@@ -167,76 +204,29 @@ def parse_args(arguments):
     """Parse command-line options."""
     parser = create_parser()
     args = parser.parse_args(arguments)
-
-    if args.jobs < 1:
-        # Do not import multiprocessing globally in case it is not supported
-        # on the platform.
-        import multiprocessing
-        args.jobs = multiprocessing.cpu_count()
-
     return args
-
-
-def write_summary(contr, fn, features, summary_colnames_f):
-    s = summary(contr, features)
-    with open(fn, 'w') as hf:
-        prefix = ''
-        for colname in summary_colnames_f:
-            hf.write(prefix)
-            if colname in s:
-                hf.write(str(s[colname]))
-            prefix = ','
-
-
-def do_and_write_summary(inventory, feature_permutation, summary_colnames_f,
-                         features, tmp_directory, use_existing_tmp):
-    fn = tmp_filename((inventory['Language_Name'],
-                       feature_permutation['Order_Name']), 'stats', tmp_directory)
-    if use_existing_tmp and os.path.isfile(fn):
-        return
-    c = contrastive(inventory, feature_permutation)
-    write_summary(c, fn, features, summary_colnames_f)
 
 
 if __name__ == '__main__':
     args = parse_args(sys.argv[1:])
 
-    inventories, features = read_inventories(args.inventories_location,
-                                             args.skipcols,
+    all_inventory_tuples = [read_inventories(l, args.skipcols,
                                              args.language_colindex,
                                              args.seg_colindex)
-    summary_colnames_f = summary_colnames(features)
-    feature_permutations = generate_permutations(args.nperms,
-                                                 args.permutation_seed,
-                                                 features)
-    create_tmp_directory(args.tmp_directory, args.use_existing_tmp)
-    invs_perms = []
-    for inventory in inventories:
-        for feature_permutation in feature_permutations:
-            invs_perms += [(inventory, feature_permutation)]
-    if args.jobs == 1:
-        for (i, p) in invs_perms:
-            do_and_write_summary(i, p, summary_colnames_f, features,
-                                 args.tmp_directory, args.use_existing_tmp)
-    else:
-        from multiprocessing import Pool
-
-        def do_and_write_summary_part((i, p)):
-            do_and_write_summary(i, p, summary_colnames_f, features,
-                                 args.tmp_directory,
-                                 args.use_existing_tmp)
-        Pool(args.jobs).map(do_and_write_summary_part, invs_perms)
-
-    if args.output_file is None:
-        hf_out = sys.stdout
-    else:
-        hf_out = open(args.output_file, 'w')
-    hf_out.write(','.join(summary_colnames(features)) + '\n')
-    for (i, p) in invs_perms:
-        hf_tmp = open(tmp_filename((i['Language_Name'], p['Order_Name']),
-                                   'stats', args.tmp_directory), 'r')
-        hf_out.write(hf_tmp.readline() + '\n')
-        hf_tmp.close()
-    hf_out.close()
-
-    shutil.rmtree(args.tmp_directory)
+                            for l in args.inventories_locations]
+    all_output_fn_prefixes = [os.path.join(args.outdir, stem_fn(l))
+                              for l in args.inventories_locations]
+    for i, inventory_tuple in enumerate(all_inventory_tuples):
+        inventories = inventory_tuple[0]
+        features = inventory_tuple[1]
+        feature_permutations = generate_permutations(args.nperms,
+                                                     args.permutation_seed,
+                                                     features)
+        invs_perms = []
+        for inventory in inventories:
+            for feature_permutation in feature_permutations:
+                invs_perms += [(inventory, feature_permutation)]
+        result = map_cstats(invs_perms, features, args.tmp_directory,
+                            args.jobs)
+        out_fn = all_output_fn_prefixes[i] + CSTATS_SUFFIX
+        write_cstat_summaries(out_fn, result, features)
