@@ -6,6 +6,22 @@ naturally occurring inventories. This work is not yet published but three
 relevant sets of slides are included (documenting different stages in our
 understanding of the research)
 
+To (re-)generate random baseline inventories
+============================================
+
+python generate_random.py --all --outdir=data/ --initial-seed=1
+  --tmpdir=tmp --jobs=100 data/inv.csv data/stop.csv data/vowel.csv
+  data/cons.csv 
+
+  * use --matrix, --feature, --segment, or some combination, instead of
+  --all to generate only uniform matrix baseline, independent data-matched
+  feature baseline, and independent data-matched segment baseline
+  * replace inventory source file(s) with whatever files you want to base
+  the stats on; baselines will be generated for all of them
+  * random seed changes for each inventory, but within each (source file x
+  baseline type) pair goes through the same fixed sequence, starting at
+  initial-seed, if initial-seed is specified; otherwise the seed is never
+  set
 
 FILES
 =====
