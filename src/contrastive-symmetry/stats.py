@@ -6,11 +6,43 @@ Created on 2015-02-26
 import argparse
 import sys
 import numpy as np
-from inventory_io import read_inventories
-from util import write_freq_table, add_all_to_counts, add_to_counts
-from segment_stats import write_value_freq_table, add_all_to_value_table
+import pandas as pd
+from inventory_io import read_inventories, default_feature_value_npf
+from util import write_freq_table, add_all_to_counts, add_to_counts,\
+    write_value_freq_table, add_all_to_value_table
 
 __version__ = '0.0.1'
+
+def read_sizes(fn):
+    raw_table = pd.read_csv(fn, dtype=np.str)
+    sizes = raw_table.ix[:, 0].values.astype(int)
+    freqs = raw_table.ix[:, 1].values.astype(int)
+    return sizes, freqs
+
+
+def read_segment_freqs(fn, feature_value_npf=default_feature_value_npf):
+    raw_table = pd.read_csv(fn, dtype=np.str)
+    ncol = raw_table.shape[1]
+    segment_names = raw_table.ix[:, 0].values.astype(str)
+    segments_raw = raw_table.ix[:, 1:(ncol - 1)]
+    freqs = raw_table.ix[:, ncol - 1].values.astype(int)
+    i_segments_raw = segments_raw.iterrows()
+    first_segment_raw = i_segments_raw.next()[1]
+    features = first_segment_raw.keys().tolist()
+    segments = [feature_value_npf(first_segment_raw.values)]
+    segments += [feature_value_npf(t[1].values) for t in i_segments_raw]
+    return segments, segment_names, features, freqs
+
+
+def read_feature_probs(fn, feature_value_npf=default_feature_value_npf):
+    raw_table = pd.read_csv(fn, dtype=np.str)
+    features = raw_table.ix[:, 0].values.astype(str).tolist()
+    feature_probs = raw_table.ix[:, 1].values.astype(float)
+    nfeat = len(features)
+    nsegs = pow(2, nfeat)
+    segment_names = ['s' + str(i + 1) for i in range(nsegs)]
+    return segment_names, features, feature_probs
+
 
 
 def create_parser():
@@ -88,7 +120,7 @@ if __name__ == '__main__':
     elif args.stat == 'feature':
         table = feature_table(inventories, features)
         write_freq_table(args.output_file, table, 'feature',
-                         freq_col_name='prob', sorted=False)
+                         freq_col_name='prob', sort=False)
     elif args.stat == 'segment':
         values, table = segment_value_table(inventories)
         write_value_freq_table(args.output_file, values, table, features)
