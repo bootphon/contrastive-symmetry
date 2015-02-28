@@ -46,6 +46,12 @@ for (inv_type in names(INPUT_FILES)) {
 \title{Analysis of inventories}
 \maketitle
 
+\section{Replication of Mackie and Mielke 2011}
+
+\section{Extension to sub-inventories}
+
+\section{}
+
 
 <<plot-segments-over-features-whole,echo=FALSE,dev='pdf'>>=
 d <- isym_min[isym_min$inv_type %in% c("Whole", "Random_MatchWhole"),]
