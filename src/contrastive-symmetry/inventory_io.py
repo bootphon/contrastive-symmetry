@@ -23,7 +23,7 @@ default_value_feature_npf = np.frompyfunc(default_value_feature_map, 1, 1)
 def read_inventories(fn, skipcols, lgcol_index, segcol_index,
                      feature_value_npf=default_feature_value_npf):
     raw_table = pd.read_csv(fn, dtype=np.str)
-    features = raw_table.columns.values[skipcols:]
+    features = raw_table.columns.values[skipcols:].tolist()
     segment_name_col = raw_table.ix[:, segcol_index]
     language_name_col = raw_table.ix[:, lgcol_index]
     language_names = pd.unique(language_name_col)
@@ -39,10 +39,15 @@ def read_inventories(fn, skipcols, lgcol_index, segcol_index,
         inventories.append(inventory)
     return inventories, features
 
-def write_inventory(inventory, fn, value_feature_npf=default_value_feature_npf):
+def write_inventory(inventory, fn, value_feature_npf=default_value_feature_npf,
+                    append=False):
     segs = inventory['segments']
     names = inventory['segment_names']
-    with open(fn, 'w') as hf:
+    if append:
+        mode = 'a'
+    else:
+        mode = 'w'
+    with open(fn, mode) as hf:
         for i, seg in enumerate(segs):
             row_i = ','.join([inventory['Language_Name'], names[i]] +
                              value_feature_npf(seg).tolist())
