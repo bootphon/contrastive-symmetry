@@ -155,35 +155,11 @@ def sample_matrix(size, seed, features):
     return sample_feature(size, seed, features, feature_probs)
 
 
-# def generate_and_write_inventory(inventory_info, segment_sample_fn,
-#                                 tmp_directory):
-#    size = inventory_info['size']
-#    seed = inventory_info['seed']
-#    inv_seg_names, inv_seg_values = segment_sample_fn(size, seed)
-#    inventory = {'Language_Name': inventory_info['Language_Name'],
-#                 'segment_names': inv_seg_names,
-#                 'segments': inv_seg_values}
-#    fn = tmp_filename((inventory['Language_Name'],), 'csv', tmp_directory)
-#    write_inventory(inventory, fn)
 
 
 def inventory_colnames(features):
     return ['language', 'label'] + features
 
-
-# def aggregate_inventories(out_fn, inventory_infos, features, tmpdir):
-#    out_dir = os.path.dirname(out_fn)
-#    if not os.path.isdir(out_dir):
-#        os.makedirs(out_dir)
-#    hf_out = open(out_fn, 'w')
-#    hf_out.write(','.join(inventory_colnames(features)) + '\n')
-#    for i in inventory_infos:
-#        hf_in = open(tmp_filename((i['Language_Name'],), 'csv', tmpdir), 'r')
-#        for line in hf_in.readlines():
-#            hf_out.write(line)
-#        hf_in.close()
-#    hf_out.close()
-#
 
 def templates(size_table, initial_seed):
     sizes = size_table.keys()
@@ -203,18 +179,6 @@ def templates(size_table, initial_seed):
     return result
 
 
-# def write_inventories(out_fn, inventories, features, size_table, sample_fn,
-#                      tmpdir, initial_seed, n_jobs):
-#    inventory_templates = templates(inventories, size_table, initial_seed)
-#    create_tmp_directory(tmpdir, False)
-#
-#    Parallel(n_jobs=n_jobs)(delayed(generate_and_write_inventory)
-#                           (i, sample_fn, tmpdir) \
-#                           for i in inventory_templates)
-#    aggregate_inventories(out_fn, inventory_templates, features, tmpdir)
-#    shutil.rmtree(tmpdir)
-#
-
 def create_inventory(inventory_info, segment_sample_fn):
     size = inventory_info['size']
     seed = inventory_info['seed']
@@ -227,10 +191,11 @@ def create_inventory(inventory_info, segment_sample_fn):
 
 def create_inventories(size_table, sample_fn, tmpdir, initial_seed, n_jobs):
     inventory_templates = templates(size_table, initial_seed)
-    f = Memory(cachedir=tmpdir, verbose=False).cache(create_inventory)
+    mem = Memory(cachedir=tmpdir, verbose=False) 
+    f = mem.cache(create_inventory)
     result = Parallel(n_jobs=n_jobs)(delayed(f)(i, sample_fn)
                                      for i in inventory_templates)
-    shutil.rmtree(tmpdir)
+    mem.clear(warn=False)
     return result
 
 
