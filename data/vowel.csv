@@ -1,4 +1,4 @@
-ALTERNATE_NAMES,SEGMENT,anterior,labial,back,high,ATR,lateral,distributed,LONG,spread,low,syllabic,continuant,nasal,sonorant,coronal,tense,constr,vocalic,strident,EXTRA,consonantal,voice,round
+language,label,anterior,labial,back,high,ATR,lateral,distributed,LONG,spread,low,syllabic,continuant,nasal,sonorant,coronal,tense,constr,vocalic,strident,EXTRA,consonantal,voice,round
 "aaa","ɛ","-","-","-","-","-","0","0","-","-","-","+","+","-","+","-","-","-","+","-","-","-","+","-"
 "aaa","ɔ","-","+","+","-","-","0","0","-","-","-","+","+","-","+","-","-","-","+","-","-","-","+","+"
 "aaa","a","-","-","+","-","-","0","0","-","-","+","+","+","-","+","-","-","-","+","-","-","-","+","-"

@@ -1,8 +1,44 @@
+library(magrittr)
+library(pryr)
+
 # palette from http://jfly.iam.u-tokyo.ac.jp/color/
-default_colour_palette <- c(Random="#E69F00", Stop="#56B4E9", 
+default_colour_palette <- c(Random="#E69F00", Natural="#56B4E9", 
                             Vowel="#009E73", "#F0E442",
-                            Consonant="#0072B2", Natural="#D55E00",
+                            Consonant="#0072B2", Stop="#D55E00",
                             RandomProp="#CC79A7")
+
+RANDOM_TYPES <- c("Random Matrix", "Random Segment", "Random Feature")
+ONE_RANDOM <- "Random"
+
+
+one_random <- function(d, random_type) {
+  random <- as.character(d$inventory_type) %in% RANDOM_TYPES
+  this_random_type <- partial(equals, random_type)
+  right_random <- d$inventory_type %>%
+                    as.character %>%
+                    this_random_type
+  d <- d[!random | right_random,]
+  d$inventory_type <- as.character(d$inventory_type)
+  d$inventory_type[this_random_type(d$inventory_type)] <- ONE_RANDOM
+  d$inventory_type <- factor(d$inventory_type)
+  return(d)
+}
+
+multi_random <- function(d) {
+  result <- c()
+  d$inventory_type <- as.character(d$inventory_type)
+  for (r in RANDOM_TYPES) {
+    d_r <- d[d$inventory_type == r,]
+    d_r$inventory_type <- ONE_RANDOM
+    d_nr <- d[!(d$inventory_type %in% RANDOM_TYPES),]
+    d_both <- rbind(d_r, d_nr)
+    d_both$random_type <- r
+    result <- rbind(result, d_both)
+  }
+  result$random_type <- factor(result$random_type,
+        levels = c("Random Matrix", "Random Feature", "Random Segment"))
+  return(result)
+}
 
 do_rank_thing <- function(d, var, by, seed=1) {
   d_by1 <- d[d[[by]] == unique(d[[by]])[1],]
@@ -86,37 +122,31 @@ plot_prevalence <- function(d, dep_measure, group,
                                         dep_measure_label=dep_measure,
                                         group_label=group,
                                         palette=default_colour_palette,
-                                        point_size=1,
+                                        point_size=4.0,
+                                        line_width=2.2,
                                         text_size=NULL,
-                                        ncol=NULL) {
-#  d[[dep_measure]] <- d[[dep_measure]]*d[["min_ncfeat"]]/(2^(d[["min_ncfeat"]]))
-  d[[dep_measure]] <- (d[[dep_measure]]*d[["min_ncfeat"]] - d[["min_ncfeat"]])/(2^(d[["min_ncfeat"]]) - d[["min_ncfeat"]])
-  d[d[[group]] == unique(d[[group]])[1],][[dep_measure]] <-
-    cut2(d[d[[group]] == unique(d[[group]])[1],][[dep_measure]], 10)
-  d[d[[group]] == unique(d[[group]])[2],][[dep_measure]] <-
-    cut2(d[d[[group]] == unique(d[[group]])[2],][[dep_measure]], 10)
-  t <- relcount(d, dep_measure, c(group))
-#  t <- count(d, vars=c(dep_measure, group))
-  p <- ggplot(t, aes_string(x=dep_measure, y='freq')) +
-    geom_bar(aes_string(fill=group), colour="black", alpha=0.4, 
-                   position='identity', stat="identity") +
-    geom_line(aes_string(group=group), lwd=1.6,
-             position='identity') +
-    geom_point(aes_string(group=group), size=point_size*1.5,
-             position='identity') +
-    geom_point(aes_string(colour=group), size=point_size*1.2,
-             position='identity') +
-#    geom_line(size=point_size*1.2) +
-#    geom_point(aes_string(colour=group), size=point_size) +
+                                        ncol=NULL,
+                                        bins=30) {
+  d <- d[!is.na(d[[dep_measure]]),]
+  binwidth <- (max(d[[dep_measure]]) - min(d[[dep_measure]]))/bins
+  p <- ggplot(d, aes_string(x=dep_measure)) +
+    stat_bin(aes(y=..ndensity..), binwidth=binwidth, position='identity',
+             geom="bar", colour="black", alpha=0.4) +
+    aes_string(fill=group) +
+    stat_bin(aes(y=..ndensity..), binwidth=binwidth, position='identity',
+             geom="line", colour="black", lwd=line_width) +
+    stat_bin(aes(y=..ndensity..), binwidth=binwidth, position='identity',
+             geom="point", colour="black", size=point_size*1.7) +
+    stat_bin(aes(y=..ndensity..), binwidth=binwidth, position='identity',
+             geom="point", size=point_size*1.2) +
+    aes_string(colour=group) +
     theme(text=element_text(size=text_size), legend.position="bottom") +
     scale_fill_manual(values=palette, drop=F, name=group_label,
-                        breaks=unique(t[[group]])) +
+                        breaks=unique(d[[group]])) +
     scale_colour_manual(values=palette, drop=F, name=group_label,
-                        breaks=unique(t[[group]])) +
-    xlab(dep_measure_label) + ylab("Frequency") +
-    labs(title=paste0(dep_measure_label))  +
-    xlim(c(0, 0.6)) + ylim(c(0,0.5))
-  
+                        breaks=unique(d[[group]])) +
+    xlab(dep_measure_label) + ylab("Relative Frequency") +
+    labs(title=paste0(dep_measure_label))
   return(p)
 }
 

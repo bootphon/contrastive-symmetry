@@ -15,30 +15,26 @@
 <<init, include=FALSE, cache=FALSE>>=
 library(plyr)
 library(ggplot2)
+source("../src/analysis/util.R")
 source("../src/analysis/read.R")
 source("../src/analysis/plot.R")
 source("../src/analysis/stats.R")
-source("../src/analysis/collapse_to_min.R")
 @
 
 <<setup, include=FALSE, cache=FALSE>>=
 source("what_analysis.R")
 @
 
-<<read-input, include=FALSE, cache=FALSE>>=
-isym_detailed <- list()
-isym <- c()
-isym_min <- c()
-for (inv_type in names(INPUT_FILES)) {
-  d <- read_isym(INPUT_FILES[[inv_type]])
-  isym_detailed[[inv_type]] <- d
-  d <- isym_detailed[[inv_type]]
-  d$inv_type <- inv_type
-  isym <- rbind(isym, d[,c(isym_stat_columns, "inv_type")])
-  d_min <- collapse_ncfeat_to_min(d)
-  d_min$inv_type <- as.character(inv_type)
-  isym_min <- rbind(isym_min, d_min[,c(isym_min_stat_columns, "inv_type")])
-}
+<<read-input, include=FALSE, cache=TRUE>>=
+long_raw_cstats <- read_from_filename_table(CSTATS_FILENAME_TABLE)
+short_raw_cstats <- combine_dlist(apply_dlist(long_raw_cstats, undetail))
+summary_cstats <- add_cstats(short_raw_cstats)
+summary_mcstats <- add_opt_cstats(summary_cstats)
+summary_mcstats_multirandom <- multi_random(summary_mcstats)
+raw_features <- read_from_filename_table(INVENTORIES_FILENAME_TABLE,
+                                         read_feature_table)
+summary_fstats <- combine_dlist(apply_dlist(raw_features, compute_fstats))
+summary_fstats_multirandom <- multi_random(summary_fstats)
 @
 
 \begin{document}
@@ -46,21 +42,76 @@ for (inv_type in names(INPUT_FILES)) {
 \title{Analysis of inventories}
 \maketitle
 
-\section{Replication of Mackie and Mielke 2011}
+\section{Exact replication of Mackie and Mielke 2011}
+
+<<exact-replication,echo=FALSE,dev='pdf'>>=
+d <- one_random(summary_mcstats[summary_mcstats$segment_type=="Whole",],
+                "Random Segment")
+p <- plot_prevalence(d, "best_nseg_by_ncfeat", "inventory_type",
+                "Number of Segments/Minimum Number of Features",
+                "Inventory Type", text_size=24)
+print(p)
+@
 
 \section{Extension to sub-inventories}
 
-\section{}
+<<subinventories,echo=FALSE,dev='pdf'>>=
+d <- one_random(summary_mcstats, "Random Segment")
+p <- plot_prevalence(d, "best_nseg_by_ncfeat", "inventory_type",
+                "Number of Segments/Minimum Number of Features",
+                "Inventory Type", text_size=24)
+p <- p + facet_wrap(~ segment_type)
+print(p)
+@
 
+\section{Correction with 2^{k} denominator}
+<<correction-with-2k-denom,echo=FALSE,dev='pdf'>>=
+d <- one_random(summary_mcstats, "Random Segment")
+p <- plot_prevalence(d, "best_nseg_by_2_ncfeat", "inventory_type",
+                "Number of Segments/Number of Possible Segments",
+                "Inventory Type", text_size=24)
+p <- p + facet_wrap(~ segment_type)
+print(p)
+@
 
-<<plot-segments-over-features-whole,echo=FALSE,dev='pdf'>>=
-d <- isym_min[isym_min$inv_type %in% c("Whole", "Random_MatchWhole"),]
-d$inv_type <- factor(d$inv_type, labels=c("Random", "Natural"))
-plot_prevalence(d, "nseg_by_min_ncfeat", "inv_type",
-                   "Number of Segments/Number of Contrastive Features",
-                           "Inventory Type"
-                            , text_size=24, point_size=2.5
-                             )
+\section{Non-replication with imbalance measure}
+         
+<<imbalance,echo=FALSE,dev='pdf'>>=
+d <- one_random(summary_mcstats, "Random Segment")
+p <- plot_prevalence(d, "best_sb_norm", "inventory_type",
+                "Relative imbalance",
+                "Inventory Type", text_size=24)
+p <- p + facet_wrap(~ segment_type)
+print(p)
+@
+
+\section{Change with respect to baseline}
+         
+<<change-baseline-economy,echo=FALSE,dev='pdf'>>=
+p <- plot_prevalence(summary_mcstats_multirandom,
+                     "best_nseg_by_2_ncfeat", "inventory_type",
+                     "Number of Segments/Number of Possible Segments",
+                     "Inventory Type", text_size=24)
+p <- p + facet_grid(random_type ~ segment_type)
+print(p)
+@
+
+<<change-baseline-imbalance,echo=FALSE,dev='pdf'>>=
+p <- plot_prevalence(summary_mcstats_multirandom, "best_sb_norm",
+                     "inventory_type", "Relative Imbalance",
+                     "Inventory Type", text_size=24)
+p <- p + facet_grid(random_type ~ segment_type)
+print(p)
+@
+
+\section{Correlation of features}
+
+<<segment-cor,echo=FALSE,dev='pdf'>>=
+p <- plot_prevalence(summary_fstats_multirandom, "abscor",
+                     "inventory_type", "Feature absolute correlation",
+                     "Inventory Type", text_size=24)
+p <- p + facet_grid(random_type ~ segment_type)
+print(p)
 @
 
 

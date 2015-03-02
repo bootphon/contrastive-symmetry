@@ -1,4 +1,4 @@
-"ALTERNATE_NAMES","SEGMENT","anterior","labial","back","high","ATR","lateral","distributed","LONG","spread","low","syllabic","continuant","nasal","sonorant","coronal","tense","constr","vocalic","strident","EXTRA","consonantal","voice","round"
+language,label,anterior,labial,back,high,ATR,lateral,distributed,LONG,spread,low,syllabic,continuant,nasal,sonorant,coronal,tense,constr,vocalic,strident,EXTRA,consonantal,voice,round
 "aaa","ɡ","-","-","+","+","0","0","0","-","-","-","-","-","-","-","-","+","-","-","-","-","+","+","-"
 "aaa","ɡ͡b","+","+","+","+","0","0","0","-","-","-","-","-","-","-","-","+","-","-","-","-","+","+","-"
 "aaa","b","+","+","-","-","0","0","+","-","-","-","-","-","-","-","-","+","-","-","-","-","+","+","-"
