@@ -19,6 +19,7 @@ source("../src/analysis/util.R")
 source("../src/analysis/read.R")
 source("../src/analysis/plot.R")
 source("../src/analysis/stats.R")
+source("../src/analysis/auc.R")
 @
 
 <<setup, include=FALSE, cache=FALSE>>=
@@ -33,8 +34,10 @@ summary_mcstats <- add_opt_cstats(summary_cstats)
 summary_mcstats_multirandom <- multi_random(summary_mcstats)
 raw_features <- read_from_filename_table(INVENTORIES_FILENAME_TABLE,
                                          read_feature_table)
-summary_fstats <- combine_dlist(apply_dlist(raw_features, compute_fstats))
+summary_fstats <- combine_dlist(apply_dlist(raw_features, compute_fstats_pair))
 summary_fstats_multirandom <- multi_random(summary_fstats)
+summary_fstats_sing <- combine_dlist(apply_dlist(raw_features, compute_fstats_sing))
+summary_fstats_sing_multirandom <- multi_random(summary_fstats_sing)
 @
 
 \begin{document}
@@ -49,68 +52,225 @@ d <- one_random(summary_mcstats[summary_mcstats$segment_type=="Whole",],
                 "Random Segment")
 p <- plot_prevalence(d, "best_nseg_by_ncfeat", "inventory_type",
                 "Number of Segments/Minimum Number of Features",
-                "Inventory Type", text_size=24)
+                "Inventory Type", text_size=48, line_width=4,
+                point_size=7.0, binwidth=0.15) +
+                coord_cartesian(xlim=c(1, 8))
+print(p)
+
+@
+
+<<exact-replication-natural,echo=FALSE,dev='pdf'>>=
+d <- summary_mcstats[summary_mcstats$segment_type=="Whole" &
+                     summary_mcstats$inventory_type=="Natural",]
+p <- plot_prevalence(d, "best_nseg_by_ncfeat", NULL,
+                "Number of Segments/Minimum Number of Features",
+                "Inventory Type", text_size=48, line_width=4, point_size=7.0,
+                colour_palette=default_colour_palette["Natural"],
+                binwidth=0.15) +
+                coord_cartesian(xlim=c(1, 8))
 print(p)
 @
 
-\section{Extension to sub-inventories}
-
-<<subinventories,echo=FALSE,dev='pdf'>>=
-d <- one_random(summary_mcstats, "Random Segment")
-p <- plot_prevalence(d, "best_nseg_by_ncfeat", "inventory_type",
+<<exact-replication-random,echo=FALSE,dev='pdf'>>=
+d <- summary_mcstats[summary_mcstats$segment_type=="Whole" &
+                     summary_mcstats$inventory_type=="Random Segment",]
+p <- plot_prevalence(d, "best_nseg_by_ncfeat", NULL,
                 "Number of Segments/Minimum Number of Features",
-                "Inventory Type", text_size=24)
-p <- p + facet_wrap(~ segment_type)
+                "Inventory Type", text_size=48, line_width=4, point_size=7.0,
+                colour_palette=default_colour_palette["Random"],
+                binwidth=0.15) + 
+                coord_cartesian(xlim=c(1, 8))
 print(p)
 @
 
 \section{Correction with 2^{k} denominator}
-<<correction-with-2k-denom,echo=FALSE,dev='pdf'>>=
-d <- one_random(summary_mcstats, "Random Segment")
+
+<<exact-2-replication,echo=FALSE,dev='pdf'>>=
+d <- one_random(summary_mcstats[summary_mcstats$segment_type=="Whole",],
+                "Random Segment")
 p <- plot_prevalence(d, "best_nseg_by_2_ncfeat", "inventory_type",
-                "Number of Segments/Number of Possible Segments",
-                "Inventory Type", text_size=24)
-p <- p + facet_wrap(~ segment_type)
+                "Number of Segments/Minimum Number of Features",
+                "Inventory Type")
 print(p)
 @
 
-\section{Non-replication with imbalance measure}
-         
-<<imbalance,echo=FALSE,dev='pdf'>>=
-d <- one_random(summary_mcstats, "Random Segment")
-p <- plot_prevalence(d, "best_sb_norm", "inventory_type",
-                "Relative imbalance",
-                "Inventory Type", text_size=24)
-p <- p + facet_wrap(~ segment_type)
+
+\section{Extension to sub-inventories}
+
+<<subinventories,echo=FALSE,dev='pdf'>>=
+d <- one_random(summary_mcstats[summary_mcstats$segment_type!="Whole",],
+                "Random Segment")
+p <- plot_prevalence(d, "best_nseg_by_2_ncfeat", "inventory_type",
+                "Number of Segments/Number of Possible Segments",
+                "Inventory Type")
+p <- p + facet_grid(segment_type ~.)
 print(p)
+@
+
+<<subinventories-means,echo=FALSE,dev='pdf'>>=
+d <- one_random(summary_mcstats, "Random Segment")
+d$segment_type <- factor(d$segment_type, levels=c("Whole", "Consonant",
+                                                  "Stop", "Vowel"))
+p <- plot_means(d, "best_nseg_by_2_ncfeat", "inventory_type",
+                "Economy", "Inventory Type") +
+     facet_grid(~ segment_type) +
+     theme(axis.title.x=element_blank(), axis.text.x=element_blank())
+print(p)
+@
+
+<<subinventories-aucs,echo=TRUE,>>=
+d <- one_random(summary_mcstats, "Random Segment")
+ddply(d, .(segment_type),
+      .fun=partial(auc_by_inventory_type, measure="best_nseg_by_2_ncfeat"))
+@
+
+
+\section{SBI measure}
+
+<<sbi-whole,echo=FALSE,dev='pdf'>>=
+d <- one_random(summary_cstats[summary_cstats$segment_type=="Whole",],
+                "Random Segment")
+p <- plot_prevalence(d, "sbi_norm", "inventory_type",
+                "Balance", "Inventory Type") +
+                coord_cartesian(xlim=c(0, 1))
+print(p)
+@
+
+<<sbi-sub,echo=FALSE,dev='pdf'>>=
+d <- one_random(summary_cstats[summary_cstats$segment_type!="Whole",],
+                "Random Segment")
+p <- plot_prevalence(d, "sbi_norm", "inventory_type",
+                "Balance", "Inventory Type")
+p <- p + facet_grid(segment_type ~ .)
+print(p)
+@
+
+<<sbi-means,echo=FALSE,dev='pdf'>>=
+d <- one_random(summary_cstats, "Random Segment")
+d$segment_type <- factor(d$segment_type, levels=c("Whole", "Consonant",
+                                                  "Stop", "Vowel"))
+p <- plot_means(d, "sbi_norm", "inventory_type",
+                "Balance", "Inventory Type") +
+     facet_grid(~ segment_type) +
+     theme(axis.title.x=element_blank(), axis.text.x=element_blank())
+print(p)
+@
+
+<<sbi-economy-means,echo=FALSE,dev='pdf'>>=
+d <- one_random(summary_cstats, "Random Segment")
+d$segment_type <- factor(d$segment_type, levels=c("Whole", "Consonant",
+                                                  "Stop", "Vowel"))
+p <- plot_means(d, "sbi_economy", "inventory_type",
+                "Residual balance", "Inventory Type") +
+     facet_grid(~ segment_type) +
+     theme(axis.title.x=element_blank(), axis.text.x=element_blank())
+print(p)
+@
+
+<<sbi-economy-means-bysize,echo=FALSE,dev='pdf'>>=
+d <- one_random(summary_cstats, "Random Segment")
+d$segment_type <- factor(d$segment_type, levels=c("Whole", "Consonant",
+                                                  "Stop", "Vowel"))
+p <- plot_means(d, "sbi_economy", "inventory_type",
+                "Residual balance", "Inventory Type",
+                x_var="nseg", x_var_label="Number of segments in inventory") +
+     facet_grid(~ segment_type) +
+     theme(axis.title.x=element_blank(), axis.text.x=element_blank())
+print(p)
+@
+
+
+<<sbi-aucs,echo=TRUE,>>=
+d <- one_random(summary_cstats, "Random Segment")
+ddply(d, .(segment_type),
+      .fun=partial(auc_by_inventory_type, measure="sbi_norm"))
+@
+
+<<sbi-economy-aucs,echo=TRUE,>>=
+d <- one_random(summary_cstats, "Random Segment")
+ddply(d, .(segment_type),
+      .fun=partial(auc_by_inventory_type, measure="sbi_economy"))
 @
 
 \section{Change with respect to baseline}
-         
-<<change-baseline-economy,echo=FALSE,dev='pdf'>>=
-p <- plot_prevalence(summary_mcstats_multirandom,
-                     "best_nseg_by_2_ncfeat", "inventory_type",
+        
+<<change-baseline-economy-means,echo=FALSE,dev='pdf'>>=
+d <- summary_mcstats
+d$inventory_type <- factor(d$inventory_type, levels=c("Natural",
+                                                      "Random Segment",
+                                                      "Random Feature",
+                                                      "Random Matrix"))
+d$segment_type <- factor(d$segment_type, levels=c("Whole", "Consonant",
+                                                      "Stop",
+                                                      "Vowel"))
+p <- plot_means(d, "best_nseg_by_2_ncfeat", "inventory_type",
                      "Number of Segments/Number of Possible Segments",
-                     "Inventory Type", text_size=24)
-p <- p + facet_grid(random_type ~ segment_type)
+                     "Inventory Type", palette = random_types_palette
+                    )
+p <- p + facet_grid(~ segment_type) +
+  theme(axis.text.x=element_blank())
 print(p)
 @
 
-<<change-baseline-imbalance,echo=FALSE,dev='pdf'>>=
-p <- plot_prevalence(summary_mcstats_multirandom, "best_sb_norm",
-                     "inventory_type", "Relative Imbalance",
-                     "Inventory Type", text_size=24)
-p <- p + facet_grid(random_type ~ segment_type)
+<<change-baseline-economy-means,echo=FALSE,dev='pdf'>>=
+d <- summary_mcstats_multirandom
+d$random_type <- factor(d$random_type,
+                        levels=c("Random Segment",
+                                 "Random Feature",
+                                 "Random Matrix"))
+p <- plot_means(d, "best_sbi_norm", "inventory_type",
+                     "Balance",
+                     "Inventory Type")
+p <- p + facet_grid(random_type ~ segment_type) +
+  theme(axis.text.x=element_blank())
 print(p)
 @
 
-\section{Correlation of features}
+\section{Feature bias}
 
-<<segment-cor,echo=FALSE,dev='pdf'>>=
-p <- plot_prevalence(summary_fstats_multirandom, "abscor",
-                     "inventory_type", "Feature absolute correlation",
-                     "Inventory Type", text_size=24)
-p <- p + facet_grid(random_type ~ segment_type)
+<<feature-avg-means-random,echo=FALSE,dev='pdf'>>=
+d <- summary_fstats_sing[summary_fstats_sing$inventory_type %in%
+                           RANDOM_TYPES &
+                         summary_fstats_sing$segment_type == "Consonant",]
+p <- plot_means(d, "absmean", "inventory_type",
+                     "Feature imbalance",
+                     "Inventory Type", x_var="nseg",
+                     x_var_label="Number of segments in inventory",
+                     palette = random_types_palette) +
+  coord_cartesian(ylim=c(0, 0.65))
+print(p)
+@
+
+<<feature-avg-means,echo=FALSE,dev='pdf'>>=
+d <- summary_fstats_sing[summary_fstats_sing$segment_type == "Consonant",]
+p <- plot_means(d, "absmean", "inventory_type",
+                     "Feature imbalance",
+                     "Inventory Type", x_var="nseg",
+                     x_var_label="Number of segments in inventory",
+                     palette = random_types_palette) +
+  coord_cartesian(ylim=c(0, 0.65))
+print(p)
+@
+
+<<feature-avg-means-stops,echo=FALSE,dev='pdf'>>=
+d <- summary_fstats_sing[summary_fstats_sing$segment_type == "Stop",]
+p <- plot_means(d, "absmean", "inventory_type",
+                     "Feature imbalance",
+                     "Inventory Type", x_var="nseg",
+                     x_var_label="Number of segments in inventory",
+                     palette = random_types_palette) +
+  coord_cartesian(ylim=c(0, 0.65))
+print(p)
+@
+
+<<feature-avg-means-vowels,echo=FALSE,dev='pdf'>>=
+d <- summary_fstats_sing[summary_fstats_sing$segment_type == "Vowel",]
+p <- plot_means(d, "absmean", "inventory_type",
+                     "Feature imbalance",
+                     "Inventory Type", x_var="nseg",
+                     x_var_label="Number of segments in inventory",
+                     palette = random_types_palette) +
+  coord_cartesian(ylim=c(0, 0.65))
 print(p)
 @
 

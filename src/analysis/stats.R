@@ -73,19 +73,35 @@ nseg_by_2_ncfeat <- function(nseg, ncfeat) {
 }
 best_nseg_by_2_ncfeat <- partial(without_na, max)
 
-sb_norm <- function(sb, ncfeat) {
-  norm <- ifelse(ncfeat==1,
-                 1.0, (ncfeat)*(ncfeat-1)/2.0)
-  return(sb/norm)
+sb_norm <- function(sb, nseg, ncfeat) {
+  norm <- (nseg - 1)*(nseg - 2)/2.0
+  result <- ifelse(nseg == 2, 0.0, sb/norm)
+  return(result)
 }
 best_sb_norm <- partial(without_na, min)
 
+sbi_norm <- function(sb, nseg, ncfeat) {
+  sbn <- sb_norm(sb, nseg, ncfeat)
+  result <- 1.0 - sbn
+  return(result)
+}
+best_sbi_norm <- partial(without_na, max)
+
+sbi_economy <- function(sb, nseg, ncfeat) {
+  sbin <- sbi_norm(sb, nseg, ncfeat)
+  economy <- nseg_by_2_ncfeat(nseg, ncfeat)
+  result <- resid(lm(tan(sbin) ~ tan(economy), na.action=na.exclude))
+  return(result)
+}
+best_sbi_economy <- partial(without_na, max)
 
 add_cstats <- function(d) {
   result <- d
   result$nseg_by_ncfeat <- result %$% nseg_by_ncfeat(nseg, ncfeat)
   result$nseg_by_2_ncfeat <- result %$% nseg_by_2_ncfeat(nseg, ncfeat)
-  result$sb_norm <- result %$% sb_norm(sb, ncfeat)
+  result$sb_norm <- result %$% sb_norm(sb, nseg, ncfeat)
+  result$sbi_norm <- result %$% sbi_norm(sb, nseg, ncfeat)
+  result$sbi_economy <- result %$% sbi_economy(sb, nseg, ncfeat)
   return(result)
 }
 
@@ -94,7 +110,10 @@ add_opt_cstats <- function(d) {
                best_nseg_by_ncfeat=best_nseg_by_ncfeat(nseg_by_ncfeat),
                best_nseg_by_2_ncfeat=best_nseg_by_2_ncfeat(nseg_by_2_ncfeat),
                best_sb=best_sb(sb),
-               best_sb_norm=best_sb_norm(sb_norm)
+               best_sb_norm=best_sb_norm(sb_norm),
+               best_sbi_norm=best_sbi_norm(sbi_norm),
+               best_sbi_economy=best_sbi_economy(sbi_economy),
+               nseg=nseg[1]
             ))
   return(result)
 }
@@ -109,19 +128,47 @@ get_features <- function(x) {
 # FIXME
 
 feature_abscors <- function(x) {
-  cors <- suppressWarnings(cor(x))
-  cors[is.na(cors)] <- 1.0
-  cors[lower.tri(cors, diag = TRUE)] <- NA
-  abscors <- abs(cors)
-  result <- melt(abscors)
-  names(result) <- c("feature_1", "feature_2", "abscor")
-  result <- result[!is.na(result$abscor),]
+  if (nrow(x) < 3) {
+    result <- data.frame(feature_1=c(), feature_2=c(), abscor=c())
+  } else {
+    is_spec <- apply(x, 2, function(v) length(unique(v)) > 1)
+    x_spec <- x[,is_spec]
+    cors <- cor(x_spec)
+    cors[lower.tri(cors, diag = TRUE)] <- NA
+    abscors <- abs(cors)
+    result <- melt(abscors) 
+    names(result) <- c("feature_1", "feature_2", "abscor")
+    result <- result[!is.na(result$abscor),]    
+  }
   return(result)
 }
 
-compute_fstats <- function(inventories) {
-  registerDoParallel()
-  result <- ddply(inventories, feature_id_cols, .parallel=TRUE,
-                  .fun=function(d) d %>% get_features %>% feature_abscors)
+feature_absmean <- function(x) {
+  is_spec <- apply(x, 2, function(v) length(unique(v)) > 1)
+  x_spec <- x[,is_spec,drop=F]  
+  means <- apply(x_spec, 2, function(y) abs(mean(y)))
+  result <- data.frame(feature=names(means), absmean=means)
+  rownames(result) <- NULL
   return(result)
 }
+
+compute_fstats_pair <- function(inventories) {
+  registerDoParallel()
+  result <- ddply(inventories, feature_id_cols, .parallel=TRUE,
+                  .fun=function(d) {
+                    f <- get_features(d)
+                    feature_abscors(f)
+                  })
+  return(result)
+}
+
+compute_fstats_sing <- function(inventories) {
+  registerDoParallel()
+  result <- ddply(inventories, feature_id_cols, .parallel=TRUE,
+                  .fun=function(d) {
+                    f <- get_features(d)
+                    cbind(feature_absmean(f), data.frame(nseg=nrow(d)))
+                  })
+  return(result)
+}
+
