@@ -11,9 +11,10 @@ current state of our understanding is that feature economy is a real effect
 in natural inventories, as shown by two different measures evaluated
 on PBase with the features from the Halle and Clements phonology workbook.
 Earlier analyses suggested, confusingly, that one, but not another, of
-these measures was showing a tendency for economy. The correct statistical
-analysis shows that this is wrong, and that there is a general tendency
-toward feature economy in natural inventories.
+these measures was showing a tendency for economy. Some cleanups to
+the statistical analysis shows that this is wrong, and that there is a
+general tendency toward feature economy in natural inventories by two
+different measures.
 
 
 One caveat with the current code is that it can sometimes fail to generate
