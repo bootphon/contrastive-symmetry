@@ -50,10 +50,16 @@ python src/contrastive-symmetry/contrast\_stats.py --outdir=contrast\_stats
   * default number of permutations is 100; random with a seed that can be
   fixed (as here, set to 1) or variable
   
+To generate a document summarizing the analysis, including all figures from the slides
+-------------------------------------
 
+  * knit the file analysis/analysis.Rmd using analysis/ as the working directory
+ 
 FILES
 -----
 
   * **docs/ijn\_102914.pdf:** Slides 10/29/2014
   * **docs/paris8\_020415.pdf:** Slides 02/04/2015
   * **docs/paris3\_021315.pdf:** Slides 10/29/2015
+  * **docs/dgfs\_leipzig\_030515\_021315.pdf:** Slides (DGfS) 03/05/2015
+  
