@@ -11,7 +11,10 @@ current state of our understanding is that feature economy is a real effect
 in natural inventories, as shown by two different measures evaluated
 on PBase with the features from the Halle and Clements phonology workbook.
 Earlier analyses suggested, confusingly, that one, but not another, of
-these measures was showing a tendency for economy.
+these measures was showing a tendency for economy. The correct statistical
+analysis shows that this is wrong, and that there is a general tendency
+toward feature economy in natural inventories.
+
 
 One caveat with the current code is that it can sometimes fail to generate
 statistics for certain inventories due to particularities of how certain
@@ -50,10 +53,16 @@ python src/contrastive-symmetry/contrast\_stats.py --outdir=contrast\_stats
   * default number of permutations is 100; random with a seed that can be
   fixed (as here, set to 1) or variable
   
+To generate a document summarizing the analysis, including all figures from the slides
+-------------------------------------
 
+  * knit the file analysis/analysis.Rmd using analysis/ as the working directory
+ 
 FILES
 -----
 
   * **docs/ijn\_102914.pdf:** Slides 10/29/2014
   * **docs/paris8\_020415.pdf:** Slides 02/04/2015
   * **docs/paris3\_021315.pdf:** Slides 10/29/2015
+  * **docs/dgfs\_leipzig\_030515\_021315.pdf:** Slides (DGfS) 03/05/2015
+  
