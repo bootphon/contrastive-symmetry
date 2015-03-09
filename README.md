@@ -2,9 +2,25 @@ contrastive-symmetry
 ====================
 
 Study of contrastive symmetry, feature economy, and feature correlation in
-naturally occurring inventories. This work is not yet published but three
+naturally occurring inventories. This work is not yet published but four
 relevant sets of slides are included (documenting different stages in our
-understanding of the research)
+understanding of the research).
+
+The current latest set of slides is from DGfS Leipzig (March 2015). The
+current state of our understanding is that feature economy is a real effect
+in natural inventories, as shown by two different measures evaluated
+on PBase with the features from the Halle and Clements phonology workbook.
+Earlier analyses suggested, confusingly, that one, but not another, of
+these measures was showing a tendency for economy.
+
+One caveat with the current code is that it can sometimes fail to generate
+statistics for certain inventories due to particularities of how certain
+features are marked as zero in the Halle and Clements feature system. This is
+why certain figures reveal that the random segment baseline does not have the
+same number of inventories as the actual database. This represents a bug in
+the logic, but we are fairly confident that the effect on the results is
+minor. It will be fixed in later versions.
+
 
 To generate random baseline inventories
 ---------------------------------------
