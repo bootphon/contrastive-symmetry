@@ -8,6 +8,10 @@ library(reshape)
 opt_id_cols <- c("language", "segment_type", "inventory_type")
 feature_id_cols <- c("language")
 
+zscore <- function(x) {
+  return((x - mean(x, na.rm=TRUE))/sd(x, na.rm=TRUE))
+}
+
 kld <- function(p_dist, q_dist) {
   p_log_p <- rep(0, length(p_dist))
   p_log_q <- rep(0, length(p_dist))
@@ -73,35 +77,50 @@ nseg_by_2_ncfeat <- function(nseg, ncfeat) {
 }
 best_nseg_by_2_ncfeat <- partial(without_na, max)
 
-sb_norm <- function(sb, nseg, ncfeat) {
+sb_norm <- function(sb, nseg) {
   norm <- (nseg - 1)*(nseg - 2)/2.0
   result <- ifelse(nseg == 2, 0.0, sb/norm)
   return(result)
 }
 best_sb_norm <- partial(without_na, min)
 
-sbi_norm <- function(sb, nseg, ncfeat) {
-  sbn <- sb_norm(sb, nseg, ncfeat)
+sbi_norm <- function(sb, nseg) {
+  sbn <- sb_norm(sb, nseg)
   result <- 1.0 - sbn
   return(result)
 }
 best_sbi_norm <- partial(without_na, max)
 
 sbi_economy <- function(sb, nseg, ncfeat) {
-  sbin <- sbi_norm(sb, nseg, ncfeat)
+  sbin <- sbi_norm(sb, nseg)
   economy <- nseg_by_2_ncfeat(nseg, ncfeat)
   result <- resid(lm(tan(sbin) ~ tan(economy), na.action=na.exclude))
   return(result)
 }
-best_sbi_economy <- partial(without_na, max)
+
+sbi_economy_binned <- function(sb, nseg, ncfeat, bins=5) {
+  sbin <- sbi_norm(sb, nseg)
+  economy <- nseg_by_2_ncfeat(nseg, ncfeat)
+  economy_binned <- cut(economy, breaks=bins)
+  sbin_zscores <- ddply(data.frame(sbin=sbin, economy=economy_binned,
+                                   original_item=1:length(sbin)),
+                        .(economy),
+                        .fun=function(d)
+                          data.frame(sbin_zscores=zscore(d$sbin),
+                                     original_item=d$original_item))
+  sbin_zscores <- sbin_zscores[order(sbin_zscores$original_item),]
+  result <- sbin_zscores$sbin_zscores
+  return(result)
+}
 
 add_cstats <- function(d) {
   result <- d
   result$nseg_by_ncfeat <- result %$% nseg_by_ncfeat(nseg, ncfeat)
   result$nseg_by_2_ncfeat <- result %$% nseg_by_2_ncfeat(nseg, ncfeat)
-  result$sb_norm <- result %$% sb_norm(sb, nseg, ncfeat)
-  result$sbi_norm <- result %$% sbi_norm(sb, nseg, ncfeat)
+  result$sb_norm <- result %$% sb_norm(sb, nseg)
+  result$sbi_norm <- result %$% sbi_norm(sb, nseg)
   result$sbi_economy <- result %$% sbi_economy(sb, nseg, ncfeat)
+  result$sbi_economy_binned <- result %$% sbi_economy_binned(sb, nseg, ncfeat)
   return(result)
 }
 
@@ -109,10 +128,6 @@ add_opt_cstats <- function(d) {
   result <- ddply(d, opt_id_cols, .fun=function(d) d %$% data.frame(
                best_nseg_by_ncfeat=best_nseg_by_ncfeat(nseg_by_ncfeat),
                best_nseg_by_2_ncfeat=best_nseg_by_2_ncfeat(nseg_by_2_ncfeat),
-               best_sb=best_sb(sb),
-               best_sb_norm=best_sb_norm(sb_norm),
-               best_sbi_norm=best_sbi_norm(sbi_norm),
-               best_sbi_economy=best_sbi_economy(sbi_economy),
                nseg=nseg[1]
             ))
   return(result)

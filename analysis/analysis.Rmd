@@ -1,18 +1,9 @@
-\documentclass{article}
+---
+title: "Feature economy analysis"
+output: html_document
+---
 
-\usepackage{geometry}
-\geometry{letterpaper,margin=1in}
-\usepackage[english]{babel}
-\usepackage{fontspec}
-\defaultfontfeatures{Mapping=tex-text}
-\setmainfont[Path=/Library/Fonts/,
-             Ligatures=TeX,
-             ItalicFont=Times New Roman Italic.ttf,
-             BoldFont=Times New Roman Bold.ttf,
-             BoldItalicFont=Times New Roman Bold Italic.ttf
-             ]{Times New Roman.ttf}
-
-<<init, include=FALSE, cache=FALSE>>=
+```{r init, include=FALSE, cache=FALSE}
 library(plyr)
 library(ggplot2)
 source("../src/analysis/util.R")
@@ -20,13 +11,21 @@ source("../src/analysis/read.R")
 source("../src/analysis/plot.R")
 source("../src/analysis/stats.R")
 source("../src/analysis/auc.R")
-@
+```
 
-<<setup, include=FALSE, cache=FALSE>>=
+```{r setup, include=FALSE, cache=FALSE}
 source("what_analysis.R")
-@
+slides_version <- FALSE
+if (slides_version) {
+  text_size <- 48
+  line_width <- 4.0
+  point_size <- 7.0  
+} else {
+  
+}
+```
 
-<<read-input, include=FALSE, cache=TRUE>>=
+```{r read-input, include=FALSE, cache=TRUE}
 long_raw_cstats <- read_from_filename_table(CSTATS_FILENAME_TABLE)
 short_raw_cstats <- combine_dlist(apply_dlist(long_raw_cstats, undetail))
 summary_cstats <- add_cstats(short_raw_cstats)
@@ -38,66 +37,63 @@ summary_fstats <- combine_dlist(apply_dlist(raw_features, compute_fstats_pair))
 summary_fstats_multirandom <- multi_random(summary_fstats)
 summary_fstats_sing <- combine_dlist(apply_dlist(raw_features, compute_fstats_sing))
 summary_fstats_sing_multirandom <- multi_random(summary_fstats_sing)
-@
+```
 
-\begin{document}
+Exact replication of Mackie and Mielke (2011)
+---------------------------------------------
 
-\title{Analysis of inventories}
-\maketitle
-
-\section{Exact replication of Mackie and Mielke 2011}
-
-<<exact-replication,echo=FALSE,dev='pdf'>>=
+```{r exact-replication,echo=FALSE, fig.width=30, fig.height=15}
 d <- one_random(summary_mcstats[summary_mcstats$segment_type=="Whole",],
                 "Random Segment")
 p <- plot_prevalence(d, "best_nseg_by_ncfeat", "inventory_type",
                 "Number of Segments/Minimum Number of Features",
-                "Inventory Type", text_size=48, line_width=4,
-                point_size=7.0, binwidth=0.15) +
+                "Inventory Type", 
+                binwidth=0.15) +
                 coord_cartesian(xlim=c(1, 8))
 print(p)
+```
 
-@
-
-<<exact-replication-natural,echo=FALSE,dev='pdf'>>=
+```{r exact-replication-natural,echo=FALSE, fig.width=30, fig.height=15}
 d <- summary_mcstats[summary_mcstats$segment_type=="Whole" &
                      summary_mcstats$inventory_type=="Natural",]
 p <- plot_prevalence(d, "best_nseg_by_ncfeat", NULL,
                 "Number of Segments/Minimum Number of Features",
-                "Inventory Type", text_size=48, line_width=4, point_size=7.0,
+                "Inventory Type", 
                 colour_palette=default_colour_palette["Natural"],
                 binwidth=0.15) +
                 coord_cartesian(xlim=c(1, 8))
 print(p)
-@
+```
 
-<<exact-replication-random,echo=FALSE,dev='pdf'>>=
+```{r exact-replication-random,echo=FALSE, fig.width=30, fig.height=15}
 d <- summary_mcstats[summary_mcstats$segment_type=="Whole" &
                      summary_mcstats$inventory_type=="Random Segment",]
 p <- plot_prevalence(d, "best_nseg_by_ncfeat", NULL,
                 "Number of Segments/Minimum Number of Features",
-                "Inventory Type", text_size=48, line_width=4, point_size=7.0,
+                "Inventory Type",
                 colour_palette=default_colour_palette["Random"],
                 binwidth=0.15) + 
                 coord_cartesian(xlim=c(1, 8))
 print(p)
-@
+```
 
-\section{Correction with 2^{k} denominator}
+Correction with 2<sup>k</sup> denominator
+-----------------------------------------
 
-<<exact-2-replication,echo=FALSE,dev='pdf'>>=
+```{r exact-2-replication,echo=FALSE, fig.width=30, fig.height=15}
 d <- one_random(summary_mcstats[summary_mcstats$segment_type=="Whole",],
                 "Random Segment")
 p <- plot_prevalence(d, "best_nseg_by_2_ncfeat", "inventory_type",
                 "Number of Segments/Minimum Number of Features",
-                "Inventory Type")
+                "Inventory Type"
+                )
 print(p)
-@
+```
 
+Extension to sub-inventories
+----------------------------
 
-\section{Extension to sub-inventories}
-
-<<subinventories,echo=FALSE,dev='pdf'>>=
+```{r subinventories,echo=FALSE, fig.width=30, fig.height=15}
 d <- one_random(summary_mcstats[summary_mcstats$segment_type!="Whole",],
                 "Random Segment")
 p <- plot_prevalence(d, "best_nseg_by_2_ncfeat", "inventory_type",
@@ -105,9 +101,9 @@ p <- plot_prevalence(d, "best_nseg_by_2_ncfeat", "inventory_type",
                 "Inventory Type")
 p <- p + facet_grid(segment_type ~.)
 print(p)
-@
+```
 
-<<subinventories-means,echo=FALSE,dev='pdf'>>=
+```{r subinventories-means,echo=FALSE, fig.width=30, fig.height=15}
 d <- one_random(summary_mcstats, "Random Segment")
 d$segment_type <- factor(d$segment_type, levels=c("Whole", "Consonant",
                                                   "Stop", "Vowel"))
@@ -116,36 +112,36 @@ p <- plot_means(d, "best_nseg_by_2_ncfeat", "inventory_type",
      facet_grid(~ segment_type) +
      theme(axis.title.x=element_blank(), axis.text.x=element_blank())
 print(p)
-@
+```
 
-<<subinventories-aucs,echo=TRUE,>>=
+```{r subinventories-aucs,echo=TRUE}
 d <- one_random(summary_mcstats, "Random Segment")
 ddply(d, .(segment_type),
       .fun=partial(auc_by_inventory_type, measure="best_nseg_by_2_ncfeat"))
-@
+```
 
+SBI measure
+-----------
 
-\section{SBI measure}
-
-<<sbi-whole,echo=FALSE,dev='pdf'>>=
+```{r sbi-whole,echo=FALSE, fig.width=30, fig.height=15}
 d <- one_random(summary_cstats[summary_cstats$segment_type=="Whole",],
                 "Random Segment")
 p <- plot_prevalence(d, "sbi_norm", "inventory_type",
                 "Balance", "Inventory Type") +
                 coord_cartesian(xlim=c(0, 1))
 print(p)
-@
+```
 
-<<sbi-sub,echo=FALSE,dev='pdf'>>=
+```{r sbi-sub,echo=FALSE, fig.width=30, fig.height=15}
 d <- one_random(summary_cstats[summary_cstats$segment_type!="Whole",],
                 "Random Segment")
 p <- plot_prevalence(d, "sbi_norm", "inventory_type",
                 "Balance", "Inventory Type")
 p <- p + facet_grid(segment_type ~ .)
 print(p)
-@
+```
 
-<<sbi-means,echo=FALSE,dev='pdf'>>=
+```{r sbi-means,echo=FALSE, fig.width=30, fig.height=15}
 d <- one_random(summary_cstats, "Random Segment")
 d$segment_type <- factor(d$segment_type, levels=c("Whole", "Consonant",
                                                   "Stop", "Vowel"))
@@ -154,47 +150,48 @@ p <- plot_means(d, "sbi_norm", "inventory_type",
      facet_grid(~ segment_type) +
      theme(axis.title.x=element_blank(), axis.text.x=element_blank())
 print(p)
-@
+```
 
-<<sbi-economy-means,echo=FALSE,dev='pdf'>>=
+```{r sbi-economy-means,echo=FALSE, fig.width=30, fig.height=15}
 d <- one_random(summary_cstats, "Random Segment")
 d$segment_type <- factor(d$segment_type, levels=c("Whole", "Consonant",
                                                   "Stop", "Vowel"))
-p <- plot_means(d, "sbi_economy", "inventory_type",
-                "Residual balance", "Inventory Type") +
+p <- plot_means(d, "sbi_economy_binned", "inventory_type",
+                "Balance z-score by economy level", "Inventory Type") +
      facet_grid(~ segment_type) +
      theme(axis.title.x=element_blank(), axis.text.x=element_blank())
 print(p)
-@
+```
 
-<<sbi-economy-means-bysize,echo=FALSE,dev='pdf'>>=
+```{r sbi-economy-means-bysize,echo=FALSE, fig.width=30, fig.height=15}
 d <- one_random(summary_cstats, "Random Segment")
 d$segment_type <- factor(d$segment_type, levels=c("Whole", "Consonant",
                                                   "Stop", "Vowel"))
-p <- plot_means(d, "sbi_economy", "inventory_type",
-                "Residual balance", "Inventory Type",
+p <- plot_means(d, "sbi_economy_binned", "inventory_type",
+                "Balance z-score by economy level", "Inventory Type",
                 x_var="nseg", x_var_label="Number of segments in inventory") +
      facet_grid(~ segment_type) +
      theme(axis.title.x=element_blank(), axis.text.x=element_blank())
 print(p)
-@
+```
 
 
-<<sbi-aucs,echo=TRUE,>>=
+```{r sbi-aucs,echo=TRUE, cache=TRUE}
 d <- one_random(summary_cstats, "Random Segment")
 ddply(d, .(segment_type),
       .fun=partial(auc_by_inventory_type, measure="sbi_norm"))
-@
+```
 
-<<sbi-economy-aucs,echo=TRUE,>>=
+```{r sbi-economy-aucs,echo=TRUE, fig.width=30, fig.height=15, cache=TRUE}
 d <- one_random(summary_cstats, "Random Segment")
 ddply(d, .(segment_type),
-      .fun=partial(auc_by_inventory_type, measure="sbi_economy"))
-@
+      .fun=partial(auc_by_inventory_type, measure="sbi_economy_binned"))
+```
 
-\section{Change with respect to baseline}
+Change with respect to baseline
+-------------------------------
         
-<<change-baseline-economy-means,echo=FALSE,dev='pdf'>>=
+```{r change-baseline-economy-means,echo=FALSE, fig.width=30, fig.height=15}
 d <- summary_mcstats
 d$inventory_type <- factor(d$inventory_type, levels=c("Natural",
                                                       "Random Segment",
@@ -208,27 +205,53 @@ p <- plot_means(d, "best_nseg_by_2_ncfeat", "inventory_type",
                      "Inventory Type", palette = random_types_palette
                     )
 p <- p + facet_grid(~ segment_type) +
-  theme(axis.text.x=element_blank())
+  theme(axis.text.x=element_blank()) + coord_cartesian(ylim=c(0, 0.65))
 print(p)
-@
+```
 
-<<change-baseline-economy-means,echo=FALSE,dev='pdf'>>=
-d <- summary_mcstats_multirandom
-d$random_type <- factor(d$random_type,
-                        levels=c("Random Segment",
-                                 "Random Feature",
-                                 "Random Matrix"))
-p <- plot_means(d, "best_sbi_norm", "inventory_type",
-                     "Balance",
-                     "Inventory Type")
-p <- p + facet_grid(random_type ~ segment_type) +
-  theme(axis.text.x=element_blank())
+```{r change-baseline-economy-means-hide-both,echo=FALSE, fig.width=30, fig.height=15}
+d <- summary_mcstats
+d$inventory_type <- factor(d$inventory_type, levels=c("Natural",
+                                                      "Random Segment",
+                                                      "Random Feature",
+                                                      "Random Matrix"))
+d$segment_type <- factor(d$segment_type, levels=c("Whole", "Consonant",
+                                                      "Stop",
+                                                      "Vowel"))
+d$best_nseg_by_2_ncfeat[d$inventory_type %in% c("Random Feature",
+                                                "Random Matrix")] <- 0
+p <- plot_means(d, "best_nseg_by_2_ncfeat", "inventory_type",
+                     "Number of Segments/Number of Possible Segments",
+                     "Inventory Type", palette = random_types_palette
+                    )
+p <- p + facet_grid(~ segment_type) +
+  theme(axis.text.x=element_blank()) + coord_cartesian(ylim=c(0, 0.65))
 print(p)
-@
+```
 
-\section{Feature bias}
+```{r change-baseline-economy-means-hide-one,echo=FALSE, fig.width=30, fig.height=15}
+d <- summary_mcstats
+d$inventory_type <- factor(d$inventory_type, levels=c("Natural",
+                                                      "Random Segment",
+                                                      "Random Feature",
+                                                      "Random Matrix"))
+d$segment_type <- factor(d$segment_type, levels=c("Whole", "Consonant",
+                                                      "Stop",
+                                                      "Vowel"))
+d$best_nseg_by_2_ncfeat[d$inventory_type %in% c("Random Matrix")] <- 0
+p <- plot_means(d, "best_nseg_by_2_ncfeat", "inventory_type",
+                     "Number of Segments/Number of Possible Segments",
+                     "Inventory Type", palette = random_types_palette
+                    )
+p <- p + facet_grid(~ segment_type) +
+  theme(axis.text.x=element_blank()) + coord_cartesian(ylim=c(0, 0.65))
+print(p)
+```
 
-<<feature-avg-means-random,echo=FALSE,dev='pdf'>>=
+Feature bias
+------------
+
+```{r feature-avg-means-random,echo=FALSE, fig.width=30, fig.height=15}
 d <- summary_fstats_sing[summary_fstats_sing$inventory_type %in%
                            RANDOM_TYPES &
                          summary_fstats_sing$segment_type == "Consonant",]
@@ -239,9 +262,9 @@ p <- plot_means(d, "absmean", "inventory_type",
                      palette = random_types_palette) +
   coord_cartesian(ylim=c(0, 0.65))
 print(p)
-@
+```
 
-<<feature-avg-means,echo=FALSE,dev='pdf'>>=
+```{r feature-avg-means,echo=FALSE, fig.width=30, fig.height=15}
 d <- summary_fstats_sing[summary_fstats_sing$segment_type == "Consonant",]
 p <- plot_means(d, "absmean", "inventory_type",
                      "Feature imbalance",
@@ -250,9 +273,9 @@ p <- plot_means(d, "absmean", "inventory_type",
                      palette = random_types_palette) +
   coord_cartesian(ylim=c(0, 0.65))
 print(p)
-@
+```
 
-<<feature-avg-means-stops,echo=FALSE,dev='pdf'>>=
+```{r feature-avg-means-stops,echo=FALSE, fig.width=30, fig.height=15}
 d <- summary_fstats_sing[summary_fstats_sing$segment_type == "Stop",]
 p <- plot_means(d, "absmean", "inventory_type",
                      "Feature imbalance",
@@ -261,9 +284,9 @@ p <- plot_means(d, "absmean", "inventory_type",
                      palette = random_types_palette) +
   coord_cartesian(ylim=c(0, 0.65))
 print(p)
-@
+```
 
-<<feature-avg-means-vowels,echo=FALSE,dev='pdf'>>=
+```{r feature-avg-means-vowels,echo=FALSE, fig.width=30, fig.height=15}
 d <- summary_fstats_sing[summary_fstats_sing$segment_type == "Vowel",]
 p <- plot_means(d, "absmean", "inventory_type",
                      "Feature imbalance",
@@ -272,7 +295,5 @@ p <- plot_means(d, "absmean", "inventory_type",
                      palette = random_types_palette) +
   coord_cartesian(ylim=c(0, 0.65))
 print(p)
-@
+```
 
-
-\end{document}
