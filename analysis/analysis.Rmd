@@ -15,14 +15,6 @@ source("../src/analysis/auc.R")
 
 ```{r setup, include=FALSE, cache=FALSE}
 source("what_analysis.R")
-slides_version <- FALSE
-if (slides_version) {
-  text_size <- 48
-  line_width <- 4.0
-  point_size <- 7.0  
-} else {
-  
-}
 ```
 
 ```{r read-input, include=FALSE, cache=TRUE}
