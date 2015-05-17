@@ -45,6 +45,7 @@ p <- plot_prevalence(d, "best_nseg_by_ncfeat", "inventory_type",
 print(p)
 ```
 
+
 ```{r exact-replication-natural,echo=FALSE, fig.width=30, fig.height=15}
 d <- summary_mcstats[summary_mcstats$segment_type=="Whole" &
                      summary_mcstats$inventory_type=="Natural",]

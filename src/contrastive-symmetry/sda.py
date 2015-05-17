@@ -24,10 +24,6 @@ def sum_balance(z, norm=True):
             result = balance_top + balancep + balancen
     return result
 
-def mean_balance(z, norm=True):
-    s = sum_balance(z, norm)
-    n = num_subtrees(z)
-    return s/n
 
 
 def num_segments(z):
@@ -45,6 +41,20 @@ def sift(z):
 
 
 def sda(z):
+    """Apply Successive Division Algorithm to a matrix.
+    
+    Args:
+        z: A fully specified all (-1 or 1 and no zeroes) feature matrix
+        for which each row is unique
+        
+    Returns:
+        A contrastively specified z. Zeroes are features which
+        are not specified.
+    
+    Raises:
+        ValueError: if z does not have every row unique, or is not
+        fully specified
+    """
     if (z == 0).sum() > 0:
         raise ValueError("SDA only works on fully specified matrices")
     n_items = np.shape(z)[0]
