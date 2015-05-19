@@ -5,7 +5,7 @@ import sys
 from inventory_io import write_inventory, read_inventories
 import numpy as np
 from stats import size_table, segment_value_table, feature_table
-from util import stem_fn
+from inventory_util import stem_fn
 from joblib import Parallel, delayed
 from joblib.memory import Memory
 

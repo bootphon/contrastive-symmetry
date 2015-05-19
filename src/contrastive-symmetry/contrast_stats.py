@@ -8,7 +8,7 @@ import sda
 from inventory_io import read_inventories
 from joblib.memory import Memory
 from joblib.parallel import Parallel, delayed
-from util import stem_fn
+from inventory_util import stem_fn
 
 __version__ = '0.0.1'
 

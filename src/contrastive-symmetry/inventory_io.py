@@ -39,6 +39,7 @@ def read_inventories(fn, skipcols, lgcol_index, segcol_index,
         inventories.append(inventory)
     return inventories, features
 
+
 def write_inventory(inventory, fn, value_feature_npf=default_value_feature_npf,
                     append=False):
     segs = inventory['segments']
@@ -52,4 +53,3 @@ def write_inventory(inventory, fn, value_feature_npf=default_value_feature_npf,
             row_i = ','.join([inventory['Language_Name'], names[i]] +
                              value_feature_npf(seg).tolist())
             hf.write(row_i + '\n')
-

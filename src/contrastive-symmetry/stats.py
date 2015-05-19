@@ -8,7 +8,7 @@ import sys
 import numpy as np
 import pandas as pd
 from inventory_io import read_inventories, default_feature_value_npf
-from util import write_freq_table, add_all_to_counts, add_to_counts,\
+from inventory_util import write_freq_table, add_all_to_counts, add_to_counts,\
     write_value_freq_table, add_all_to_value_table
 
 __version__ = '0.0.1'
