@@ -166,7 +166,6 @@ class MinimalSubsetsFromBottom(object):
                                    is_good_expansion_post_collapse=
                                    self.is_good_expansion)
             while self.frontier:
-                print len(self.frontier)
                 min_on_frontier = [f for f in self.frontier if self.is_spec(f)]
                 if min_on_frontier:
                     self.found_on_frontier = min_on_frontier
@@ -249,7 +248,6 @@ class MinimalSubsetsFromTop(object):
         """
         if not self.found_on_frontier:
             while self.frontier and not self.no_specs:
-                print len(self.frontier)
                 is_minimal = [not e for e in self.frontier_candidates]
                 self.found_on_frontier = [self.frontier[i] for
                                           i in range(len(self.frontier)) if
