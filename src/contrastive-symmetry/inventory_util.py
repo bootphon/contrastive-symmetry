@@ -7,6 +7,7 @@ import sys
 from inventory_io import default_value_feature_npf
 import os
 from util import search_npvec
+import numpy
 
 
 def write_freq_table(output_file, table, key_col_name, freq_col_name='freq',
@@ -74,16 +75,42 @@ def to_row_partition(table):
     If the table is empty (has no columns) return an empty list.
     """
     if table.shape[1] == 0:
-        return []
-    result = []
-    rows = []
-    for i in range(table.shape[0]):
-        row_i = table[i,:]
-        try:
-            j_existing = search_npvec(row_i, rows)
-            result[j_existing].append(i)
-        except ValueError:
-            result.append([i])
-            rows.append(row_i)
+        result = []
+    elif table.shape[1] == 1:
+        vec = table[:,0]
+        values = numpy.unique(vec)
+        partition = [numpy.where(vec == v)[0].tolist() for v in values]
+        result = [s for s in partition if s]
+    else:
+        result = []
+        rows = []
+        for i in range(table.shape[0]):
+            try:
+                row_i = table[i,:]
+                j_existing = search_npvec(row_i, rows)
+                result[j_existing].append(i)
+            except ValueError:
+                result.append([i])
+                rows.append(row_i)
     return result
     
+    
+def is_full_rank(table):
+    """Determine if table is full rank.
+    """
+    if table.shape[1] == 0:
+        return False
+    if table.shape[1] == 1:
+        vec = table[:,0]
+        values = numpy.unique(vec)
+        return len(values) == table.shape[0]
+    rows = []
+    for i in range(table.shape[0]):
+        try:
+            row_i = table[i,:]
+            search_npvec(row_i, rows)
+            return False
+        except ValueError:
+            rows.append(row_i)
+    return True
+        
