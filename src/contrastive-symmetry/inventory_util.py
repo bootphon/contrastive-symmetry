@@ -114,3 +114,7 @@ def is_full_rank(table):
             rows.append(row_i)
     return True
         
+
+def get_hyperplane(table, hyperplane):
+    pass
+    

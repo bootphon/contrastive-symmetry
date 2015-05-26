@@ -6,12 +6,14 @@ Created on 2015-05-18
 import argparse
 import sys
 from inventory_io import read_inventories
-from util import has_one, get_all
-from lattice import expand, expand_without_collapsing, collapse_expansions
-from inventory_util import to_row_partition, is_full_rank
+from util import has_one, get_all, which_contains, get_cols_except,\
+    collapse_those_containing
+from lattice import expand
+from inventory_util import to_row_partition
 from joblib.parallel import Parallel, delayed
 import os
 import math
+import numpy
 
 
 __version__ = '0.0.1'
@@ -20,7 +22,7 @@ __version__ = '0.0.1'
 class MinimalSubsetsFromBottom(object):
 
     """An iterator over all the subsets of the feature set
-    that specify an inventory which are minimal, meaning 
+    that specify an inventory which are minimal, meaning
     that no subset can be used to specify the inventory.
 
     Starting from the bottom (empty set) of the lattice of
@@ -40,9 +42,9 @@ class MinimalSubsetsFromBottom(object):
              "Feature_Table", a numpy array with segments as rows and feature
              values as columns)
         """
-        self.frontier = [set()]
-        self.found_on_frontier = []
-        self.found = []
+        self.bottom_frontier = [set()]
+        self.found_on_bottom_frontier = []
+        self.dont_go_up_from = []
         self.inventory_table = inventory["Feature_Table"]
         self.feature_nums = range(self.inventory_table.shape[1])
         self.partition_cache = {}
@@ -50,16 +52,17 @@ class MinimalSubsetsFromBottom(object):
     def __iter__(self):
         return self
 
-    def cached_partition(self, subset):
+    def create_or_cached_partition(self, subset):
         """Get a partition from the cache or create it and cache it.
         """
         t = tuple(subset)
-        if not self.partition_cache.has_key(t):
+        if t not in self.partition_cache:
             spec = self.inventory_table[:, t]
             self.partition_cache[t] = to_row_partition(spec)
         return self.partition_cache[t]
 
-    def cached_partition_expansion(self, partition, subset, new_feature=None):
+    def create_by_split_or_cached_partition(self, partition, subset,
+                                            new_feature=None):
         """Get a partition from the cache or create it by expanding
         an existing partition and cache it. If partition is in fact
         empty (not really a partition, is it) then the new partition
@@ -67,9 +70,9 @@ class MinimalSubsetsFromBottom(object):
         single new feature index you need to check.
         """
         if len(partition) == 0:
-            return self.cached_partition(subset)
+            return self.create_or_cached_partition(subset)
         t = tuple(subset)
-        if not self.partition_cache.has_key(t):
+        if t not in self.partition_cache:
             if new_feature is None:
                 spec = self.inventory_table[:, t]
             else:
@@ -85,18 +88,18 @@ class MinimalSubsetsFromBottom(object):
     def is_spec(self, subset):
         """Check whether subset allows a specification of the inventory.
         """
-        rank = len(self.cached_partition(subset))
+        rank = len(self.create_or_cached_partition(subset))
         return rank == self.inventory_table.shape[0]
 
     def is_rank_more_than_one(self, subset):
         """Check whether subset is of rank strictly more than one.
         """
-        partition = self.cached_partition(subset)
+        partition = self.create_or_cached_partition(subset)
         rank = len(partition)
         return rank > 1
 
     def is_rank_increase(self, subset1, subset2):
-        """Check whether subset2 is a rank increase with respect to 
+        """Check whether subset2 is a rank increase with respect to
         subset1, i.e., whether the rank of the inventory table
         with respect to subset1 increases when the feature(s) in
         subset2 are added.
@@ -110,16 +113,17 @@ class MinimalSubsetsFromBottom(object):
             new_feature = new_features.pop()
         else:
             new_feature = None
-        partition_1 = self.cached_partition(subset1)
-        partition_2 = self.cached_partition_expansion(partition_1, subset2,
-                                                      new_feature)
+        partition_1 = self.create_or_cached_partition(subset1)
+        partition_2 = self.create_by_split_or_cached_partition(partition_1,
+                                                               subset2,
+                                                               new_feature)
         rank1 = len(partition_1)
         rank2 = len(partition_2)
         if rank2 > rank1:
             return True
         return False
 
-    def is_good_expansion(self, current, proposal):
+    def not_ruled_out_bottom_up(self, current, proposal):
         """Check a proposed expansion (proposal) of a feature set (current)
         to see whether it is good. proposal is not good if either, (i), it's a
         superset of a known minimal set, (ii), it is extensionally
@@ -131,67 +135,71 @@ class MinimalSubsetsFromBottom(object):
             return False
         if not self.is_rank_more_than_one(proposal):
             return False
-        if has_one(self.found, proposal.issuperset):
+        if has_one(self.dont_go_up_from, proposal.issuperset):
             return False
         return proposal
 
-    def is_expandable(self, current):
+    def should_look_up_from(self, current):
         """Check a node to see whether it should be expanded at all.
         It shouldn't if it's a known minimal set.
         """
-        if current in self.found:
+        if current in self.dont_go_up_from:
             return False
         return True
 
-    def node_to_expansions(self, set_of_features, is_good_expansion=None):
+    def whats_up(self, set_of_features):
         """Expand a feature set by providing a version with each of
-        the features in the base set which is not already in the 
+        the features in the base set which is not already in the
         feature set.
         """
         result_l = []
         for new_feature in self.feature_nums:
             if not new_feature in set_of_features:
                 expansion = set_of_features.union([new_feature])
-                if is_good_expansion is None or is_good_expansion(expansion):
+                if self.not_ruled_out_bottom_up(set_of_features, expansion):
                     result_l.append(expansion)
         return result_l
+
+    def move_bottom_frontier(self):
+        self.bottom_frontier = expand(self.bottom_frontier,
+                                      self.whats_up,
+                                      parent_filter=self.should_look_up_from,
+                                      child_filter=self.not_ruled_out_bottom_up)
+
+    def search_bottom_frontier(self):
+        self.found_on_bottom_frontier = [f for f in self.bottom_frontier if
+                                         self.is_spec(f)]
+        if self.found_on_bottom_frontier:
+            self.dont_go_up_from += self.found_on_bottom_frontier
 
     def next(self):
         """Return the next minimal subset found, expanding
         the frontier to find more if necessary.
         """
-        if not self.found_on_frontier:
-            self.frontier = expand(self.frontier, self.node_to_expansions,
-                                   self.is_expandable,
-                                   is_good_expansion_post_collapse=
-                                   self.is_good_expansion)
-            while self.frontier:
-                min_on_frontier = [f for f in self.frontier if self.is_spec(f)]
-                if min_on_frontier:
-                    self.found_on_frontier = min_on_frontier
-                    for new_found in min_on_frontier:
-                        assert new_found not in self.found
-                    self.found += min_on_frontier
+        if not self.found_on_bottom_frontier:
+            self.move_bottom_frontier()
+            while self.bottom_frontier:
+                self.search_bottom_frontier()
+                if self.found_on_bottom_frontier:
                     break
-                self.frontier = expand(self.frontier, self.node_to_expansions,
-                                       self.is_expandable,
-                                       is_good_expansion_post_collapse=
-                                       self.is_good_expansion)
-            if not self.found_on_frontier:
+                else:
+                    self.move_bottom_frontier()
+            if not self.found_on_bottom_frontier:
                 raise StopIteration()
-        return self.found_on_frontier.pop()
+        return self.found_on_bottom_frontier.pop()
 
 
 class MinimalSubsetsFromTop(object):
 
     """An iterator over all the subsets of the feature set
-    that specify an inventory which are minimal, meaning 
+    that specify an inventory which are minimal, meaning
     that no subset can be used to specify the inventory.
 
     Starting from the top (full set) of the lattice of
     subsets of the feature set, expands nodes in the lattice to find minimal
     sets, skipping over nodes that are known to be useless.
-    Nodes are useless if they cannot specify the inventory.
+    Nodes are useless if they (i) cannot specify the inventory or (ii)
+    contain a subset of a known non-specifying set.
     """
 
     def __init__(self, inventory):
@@ -202,16 +210,200 @@ class MinimalSubsetsFromTop(object):
              "Feature_Table", a numpy array with segments as rows and feature
              values as columns)
         """
-        self.found_on_frontier = []
+        self.partition_cache = {}
+        self.found_on_top_frontier = []
+        self.dont_go_down_from = [set()]
         self.inventory_table = inventory["Feature_Table"]
         self.feature_nums = range(self.inventory_table.shape[1])
-        self.frontier = [set(self.feature_nums)]
-        if self.is_spec(self.frontier[0]):
+        if self.is_spec(set(self.feature_nums)):
             self.no_specs = False
-            self.frontier_candidates = expand_without_collapsing(self.frontier,
-                                                    self.node_to_expansions,
-                                                    self.is_expandable,
-                                                    self.is_spec)
+            self.top_frontier = [set(self.feature_nums)]
+            self.search_top_frontier()
+        else:
+            self.no_specs = True
+
+    def __iter__(self):
+        return self
+
+    def create_or_cached_partition(self, subset):
+        """Get a partition from the cache or create it and cache it.
+        """
+        t = tuple(subset)
+        if t not in self.partition_cache:
+            spec = self.inventory_table[:, t]
+            self.partition_cache[t] = to_row_partition(spec)
+        return self.partition_cache[t]
+
+    def create_by_collapse_or_cached_partition(self, smaller, bigger,
+                                               feature_removed):
+        """Get a partition from the cache or create it by collapsing
+        an existing partition and cache it. Subset must differ from
+        partition by a single max ternary feature.
+        """
+        t2 = tuple(smaller)
+        if t2 not in self.partition_cache:
+            t1 = tuple(bigger)
+            existing_partition = self.create_or_cached_partition(t1)
+            new_partition = existing_partition[:]
+            vec = self.inventory_table[:, (feature_removed,)]
+            values = numpy.unique(vec)
+            if not len(values) <= 3:
+                raise ValueError()
+            if len(values) > 1:
+                f_partition = [numpy.where(vec == v)[0].tolist() for v
+                               in values]
+                residue_cols = get_cols_except(self.inventory_table, t1,
+                                               feature_removed)
+                for i in f_partition[0]:
+                    for j in f_partition[1]:
+                        if numpy.any(residue_cols[i, :] != residue_cols[j,:]):
+                            continue
+                        collapse_those_containing(new_partition, i, j)
+                if len(values) == 3:
+                    for i in f_partition[0]:
+                        for k in f_partition[2]:
+                            if numpy.any(residue_cols[i, :] != residue_cols[k,:]):
+                                continue
+                            collapse_those_containing(new_partition, i, k)
+                    for j in f_partition[1]:
+                        for k in f_partition[2]:
+                            if numpy.any(residue_cols[j, :] != residue_cols[k,:]):
+                                continue
+                            collapse_those_containing(new_partition, j, k)
+            self.partition_cache[t2] = new_partition
+        return self.partition_cache[t2]
+
+    def is_spec(self, subset):
+        rank = len(self.create_or_cached_partition(subset))
+        return rank == self.inventory_table.shape[0]
+
+    def is_not_rank_decrease(self, subset1, subset2):
+        """Check whether subset2 is not a rank decrease with respect to
+        subset1, i.e., whether the rank of the inventory table
+        with respect to subset1 stays the same when the feature(s) in
+        subset2 are added.
+        Presupposes that subset2 is a subset of subset1, and
+        raises a ValueError if this is not the case.
+        """
+        if not subset2.issubset(subset1):
+            raise ValueError()
+        remove_features = subset1 - subset2
+        if len(remove_features) != 1:
+            raise ValueError()
+        remove_feature = remove_features.pop()
+        partition_1 = self.create_or_cached_partition(subset1)
+        partition_2 = self.create_by_collapse_or_cached_partition(subset2,
+                                                                  subset1,
+                                                                  remove_feature)
+        rank1 = len(partition_1)
+        rank2 = len(partition_2)
+        if rank2 == rank1:
+            return True
+        return False
+
+    def not_ruled_out_top_down(self, current, proposal):
+        """Check whether subset allows a specification of the inventory.
+        """
+        if has_one(self.dont_go_down_from, proposal.issubset):
+            return False
+        if self.is_not_rank_decrease(current, proposal):
+            return True
+        else:
+            self.dont_go_down_from.append(proposal)
+            return False
+
+    def whats_down(self, set_of_features):
+        """Elaborate a feature set by providing a version lacking each of
+        the features in the set.
+        """
+        result_l = []
+        for removed_feature in set_of_features:
+            elaboration = set_of_features - {removed_feature}
+            if self.not_ruled_out_top_down(set_of_features, elaboration):
+                result_l.append(elaboration)
+        return result_l
+
+    def has_down(self, set_of_features):
+        """Check to see if there is at least one way of removing a feature
+        from the node that isn't ruled out.
+        """
+        for removed_feature in set_of_features:
+            elaboration = set_of_features - {removed_feature}
+            if self.not_ruled_out_top_down(set_of_features, elaboration):
+                return True
+        return False
+
+    def is_minimal_from_top(self, node):
+        """Presupposes that node is a spec.
+        """
+        if self.has_down(node):
+            return False
+        return True
+
+    def search_top_frontier(self):
+        self.found_on_top_frontier = [n for n in self.top_frontier if
+                                      self.is_minimal_from_top(n)]
+
+    def move_top_frontier(self):
+        self.top_frontier = expand(self.top_frontier,
+                                   self.whats_down,
+                                   child_filter=self.not_ruled_out_top_down)
+
+    def next(self):
+        """Return the next minimal subset found, expanding
+        the frontier to find more if necessary.
+        """
+        if self.no_specs:
+            raise StopIteration()
+        if not self.found_on_top_frontier:
+            self.move_top_frontier()
+            while self.top_frontier:
+                self.search_top_frontier()
+                if self.found_on_top_frontier:
+                    break
+                else:
+                    self.move_top_frontier()
+            if not self.found_on_top_frontier:
+                raise StopIteration()
+        return self.found_on_top_frontier.pop()
+
+
+class MinimalSubsetsFromBothEnds(object):
+
+    """An iterator over all the subsets of the feature set
+    that specify an inventory which are minimal, meaning
+    that no subset can be used to specify the inventory.
+
+    Working simultaneously from the top (full set) and the bottom
+    (empty set) of the lattice of
+    subsets of the feature set, expands nodes in the lattice to find minimal
+    sets, skipping over nodes that are known to be useless.
+    Nodes are useless if they (i) cannot specify the inventory (ii)
+    contain a subset of a known non-specifying set (iii) contain a superset
+    of a known minimal set or if they (iv) contain a redundant feature, i.e.,
+    a feature which is never potentially contrastive given the other features
+    in the set.
+    """
+
+    def __init__(self, inventory):
+        self.partition_cache = {}
+        self.inventory_table = inventory["Feature_Table"]
+        self.feature_nums = range(self.inventory_table.shape[1])
+        if self.is_spec(set(self.feature_nums)):
+            self.no_specs = False
+            self.top_frontier = [set(self.feature_nums)]
+            self.top_depth = 0
+            self.bottom_frontier = [set()]
+            self.bottom_depth = 0
+            self.max_frontier_depth = len(self.feature_nums) // 2
+            if len(self.feature_nums) % 2 == 0:
+                self.odd_midpoint = True
+            else:
+                self.odd_midpoint = False
+            self.dont_go_up_from = []
+            self.dont_go_down_from = [set()]
+            self.search_top_frontier()
+            self.search_bottom_frontier()
         else:
             self.no_specs = True
 
@@ -219,55 +411,274 @@ class MinimalSubsetsFromTop(object):
         return self
 
     def is_spec(self, subset):
-        """Check whether subset allows a specification of the inventory.
+        rank = len(self.create_or_cached_partition(subset))
+        return rank == self.inventory_table.shape[0]
+
+    def create_or_cached_partition(self, subset):
+        """Get a partition from the cache or create it and cache it.
         """
         t = tuple(subset)
-        spec = self.inventory_table[:, t]
-        return is_full_rank(spec)
+        if t not in self.partition_cache:
+            spec = self.inventory_table[:, t]
+            self.partition_cache[t] = to_row_partition(spec)
+        return self.partition_cache[t]
 
-    def is_expandable(self, current):
-        """Check a node to see whether it should be expanded at all.
-        It shouldn't if it's the empty set.
+    def create_by_split_or_cached_partition(self, partition, subset,
+                                            new_feature=None):
+        """Get a partition from the cache or create it by expanding
+        an existing partition and cache it. If partition is in fact
+        empty (not really a partition, is it) then the new partition
+        is created de novo. Can get a speedup if you can specify which
+        single new feature index you need to check.
         """
-        return len(current) > 0
+        if len(partition) == 0:
+            return self.create_or_cached_partition(subset)
+        t = tuple(subset)
+        if t not in self.partition_cache:
+            if new_feature is None:
+                spec = self.inventory_table[:, t]
+            else:
+                spec = self.inventory_table[:, (new_feature,)]
+            new_partition = []
+            for row_set in partition:
+                subpartition_r = to_row_partition(spec[row_set, :])
+                subpartition = [get_all(row_set, sr) for sr in subpartition_r]
+                new_partition += subpartition
+            self.partition_cache[t] = new_partition
+        return self.partition_cache[t]
 
-    def node_to_expansions(self, set_of_features, is_good_expansion=None):
+    def create_by_collapse_or_cached_partition(self, smaller, bigger,
+                                               feature_removed):
+        """Get a partition from the cache or create it by collapsing
+        an existing partition and cache it. Subset must differ from
+        partition by a single max ternary feature.
+        """
+        t2 = tuple(smaller)
+        if t2 not in self.partition_cache:
+            t1 = tuple(bigger)
+            existing_partition = self.create_or_cached_partition(t1)
+            new_partition = existing_partition[:]
+            vec = self.inventory_table[:, (feature_removed,)]
+            values = numpy.unique(vec)
+            if not len(values) <= 3:
+                raise ValueError()
+            if len(values) > 1:
+                f_partition = [numpy.where(vec == v)[0].tolist() for v
+                               in values]
+                residue_cols = get_cols_except(self.inventory_table, t1,
+                                               feature_removed)
+                for i in f_partition[0]:
+                    for j in f_partition[1]:
+                        if numpy.any(residue_cols[i, :] != residue_cols[j,:]):
+                            continue
+                        collapse_those_containing(new_partition, i, j)
+                if len(values) == 3:
+                    for i in f_partition[0]:
+                        for k in f_partition[2]:
+                            if numpy.any(residue_cols[i, :] != residue_cols[k,:]):
+                                continue
+                            collapse_those_containing(new_partition, i, k)
+                    for j in f_partition[1]:
+                        for k in f_partition[2]:
+                            if numpy.any(residue_cols[j, :] != residue_cols[k,:]):
+                                continue
+                            collapse_those_containing(new_partition, j, k)
+            self.partition_cache[t2] = new_partition
+        return self.partition_cache[t2]
+
+    def is_rank_more_than_one(self, subset):
+        """Check whether subset is of rank strictly more than one.
+        """
+        partition = self.create_or_cached_partition(subset)
+        rank = len(partition)
+        return rank > 1
+
+    def is_rank_increase(self, subset1, subset2):
+        """Check whether subset2 is a rank increase with respect to
+        subset1, i.e., whether the rank of the inventory table
+        with respect to subset1 increases when the feature(s) in
+        subset2 are added.
+        Presupposes that subset2 is a superset of subset1, and
+        raises a ValueError if this is not the case.
+        """
+        if not subset2.issuperset(subset1):
+            raise ValueError()
+        new_features = subset2 - subset1
+        if len(new_features) == 1:
+            new_feature = new_features.pop()
+        else:
+            new_feature = None
+        partition_1 = self.create_or_cached_partition(subset1)
+        partition_2 = self.create_by_split_or_cached_partition(partition_1,
+                                                               subset2,
+                                                               new_feature)
+        rank1 = len(partition_1)
+        rank2 = len(partition_2)
+        if rank2 > rank1:
+            return True
+        return False
+
+    def is_not_rank_decrease(self, subset1, subset2):
+        """Check whether subset2 is not a rank decrease with respect to
+        subset1, i.e., whether the rank of the inventory table
+        with respect to subset1 stays the same when the feature(s) in
+        subset2 are added.
+        Presupposes that subset2 is a subset of subset1, and
+        raises a ValueError if this is not the case.
+        """
+        if not subset2.issubset(subset1):
+            raise ValueError()
+        remove_features = subset1 - subset2
+        if len(remove_features) != 1:
+            raise ValueError()
+        remove_feature = remove_features.pop()
+        partition_1 = self.create_or_cached_partition(subset1)
+        partition_2 = self.create_by_collapse_or_cached_partition(subset2,
+                                                                  subset1,
+                                                                  remove_feature)
+        rank1 = len(partition_1)
+        rank2 = len(partition_2)
+        if rank2 == rank1:
+            return True
+        return False
+
+    def not_ruled_out_in_general(self, proposal):
+        if not self.is_rank_more_than_one(proposal):
+            return False
+        if has_one(self.dont_go_up_from, proposal.issuperset):
+            return False
+        return True
+
+    def not_ruled_out_bottom_up(self, current, proposal):
+        if not self.not_ruled_out_in_general(proposal):
+            return False
+        if not self.is_rank_increase(current, proposal):
+            return False
+        return True
+
+    def not_ruled_out_top_down(self, current, proposal):
+        if not self.not_ruled_out_in_general(proposal):
+            return False
+        if has_one(self.dont_go_down_from, proposal.issubset):
+            return False
+        if self.is_not_rank_decrease(current, proposal):
+            return True
+        else:
+            self.dont_go_down_from.append(proposal)
+            return False
+
+    def should_look_up_from(self, current):
+        """Check a node to see whether it should be expanded at all.
+        It shouldn't if it's a known minimal set.
+        """
+        if current in self.dont_go_up_from:
+            return False
+        return True
+
+    def whats_up(self, set_of_features):
+        """Expand a feature set by providing a version with each of
+        the features in the base set which is not already in the
+        feature set.
+        """
+        result_l = []
+        for new_feature in self.feature_nums:
+            if not new_feature in set_of_features:
+                expansion = set_of_features.union([new_feature])
+                if self.not_ruled_out_bottom_up(set_of_features, expansion):
+                    result_l.append(expansion)
+        return result_l
+
+    def whats_down(self, set_of_features):
         """Elaborate a feature set by providing a version lacking each of
         the features in the set.
         """
         result_l = []
         for removed_feature in set_of_features:
             elaboration = set_of_features - {removed_feature}
-            if is_good_expansion is None or is_good_expansion(elaboration):
+            if self.not_ruled_out_top_down(set_of_features, elaboration):
                 result_l.append(elaboration)
         return result_l
 
+    def has_down(self, set_of_features):
+        """Check to see if there is at least one way of removing a feature
+        from the node that isn't ruled out.
+        """
+        for removed_feature in set_of_features:
+            elaboration = set_of_features - {removed_feature}
+            if self.not_ruled_out_top_down(set_of_features, elaboration):
+                return True
+        return False
+
+    def is_minimal_from_top(self, node):
+        """Presupposes that node is a spec.
+        """
+        if self.has_down(node):
+            return False
+        return True
+
+    def search_bottom_frontier(self):
+        self.found_on_bottom_frontier = [f for f in self.bottom_frontier if
+                                         self.is_spec(f)]
+        if self.found_on_bottom_frontier:
+            self.dont_go_up_from += self.found_on_bottom_frontier
+
+    def move_bottom_frontier(self):
+        if (self.odd_midpoint and \
+            self.top_depth == self.bottom_depth + 1 and \
+            self.top_depth == self.max_frontier_depth) or \
+            self.bottom_depth == self.max_frontier_depth:
+            self.bottom_frontier = []
+        else:
+            self.bottom_frontier = expand(self.bottom_frontier,
+                                          self.whats_up,
+                                          parent_filter=self.should_look_up_from,
+                                          child_filter=self.not_ruled_out_bottom_up)
+            self.bottom_depth += 1
+
+    def search_top_frontier(self):
+        self.found_on_top_frontier = [n for n in self.top_frontier if
+                                      self.is_minimal_from_top(n)]
+
+    def move_top_frontier(self):
+        if (self.odd_midpoint and \
+            self.bottom_depth == self.top_depth + 1 and \
+            self.bottom_depth == self.max_frontier_depth) or \
+            self.top_depth == self.max_frontier_depth:
+            self.top_frontier = []
+        else:
+            self.top_frontier = expand(self.top_frontier, self.whats_down,
+                                       child_filter=self.not_ruled_out_top_down)
+            self.top_depth += 1
+
+    def found(self):
+        return self.found_on_top_frontier or self.found_on_bottom_frontier
+
+    def pop_all_found(self):
+        if self.found_on_top_frontier:
+            return self.found_on_top_frontier.pop()
+        if self.found_on_bottom_frontier:
+            return self.found_on_bottom_frontier.pop()
+
     def next(self):
         """Return the next minimal subset found, expanding
-        the frontier to find more if necessary.
+        the frontiers to find more if necessary.
         """
-        if not self.found_on_frontier:
-            while self.frontier and not self.no_specs:
-                is_minimal = [not e for e in self.frontier_candidates]
-                self.found_on_frontier = [self.frontier[i] for
-                                          i in range(len(self.frontier)) if
-                                          is_minimal[i]]
-                if not self.found_on_frontier:
-                    self.frontier = collapse_expansions(self.frontier,
-                                                        self.frontier_candidates)
-                    self.frontier_candidates = expand_without_collapsing(
-                        self.frontier,
-                        self.node_to_expansions,
-                        self.is_expandable,
-                        self.is_spec)
-                else:
-                    self.frontier = [self.frontier[i] for
-                                     i in range(len(self.frontier)) if
-                                     not is_minimal[i]]
+        if self.no_specs:
+            raise StopIteration()
+        if not self.found():
+            self.move_top_frontier()
+            self.move_bottom_frontier()
+            while self.top_frontier or self.bottom_frontier:
+                self.search_top_frontier()
+                self.search_bottom_frontier()
+                if self.found():
                     break
-            if not self.found_on_frontier:
+                else:
+                    self.move_top_frontier()
+                    self.move_bottom_frontier()
+            if not self.found():
                 raise StopIteration()
-        return self.found_on_frontier.pop()
+        return self.pop_all_found()
 
 
 def output_filename(inventory):
@@ -282,15 +693,12 @@ def iterator_top_down(inventory):
     return MinimalSubsetsFromTop(inventory)
 
 
-def choose_search(inventory, expected_economy):
-    # top down has slower operations but both are bloody slow, so whatever
-    max_bottom_up = math.ceil(inventory["Feature_Table"].shape[1] / 2.0)
-    expected_features = inventory["Feature_Table"].shape[0] / expected_economy
-    if expected_features <= max_bottom_up:
-        return iterator_bottom_up
-    else:
-        return iterator_top_down
+def iterator_both_sides(inventory):
+    return MinimalSubsetsFromBothEnds(inventory)
 
+
+def choose_search(inventory):
+    return iterator_both_sides
 
 def search_and_write(inventory, iterator, output_nf, feature_names):
     with open(output_nf, "w") as hf:
@@ -305,11 +713,10 @@ def search_and_write(inventory, iterator, output_nf, feature_names):
         hf.write('\n')
 
 
-def write_minimal_parallel(inventories, features, out_dir,
-                           expected_economy, n_jobs):
+def write_minimal_parallel(inventories, features, out_dir, n_jobs):
     if not os.path.isdir(out_dir):
         os.makedirs(out_dir)
-    search_fns = [choose_search(inv, expected_economy) for inv in inventories]
+    search_fns = [choose_search(inv) for inv in inventories]
     output_nfs = [os.path.join(out_dir, output_filename(inv)) for
                   inv in inventories]
     Parallel(n_jobs=n_jobs)(delayed(search_and_write)(inventories[i],
@@ -333,9 +740,6 @@ def create_parser():
     parser.add_argument('--jobs', type=int, default=1,
                         help='number of parallel jobs; '
                         'match CPU count if value is less than 1')
-    parser.add_argument('--expected-economy', type=float, default=2.5,
-                        help='expected feature economy (for choosing'
-                        'between top-down and bottom up search)')
     parser.add_argument('inventories_location',
                         help='csv containing all inventories')
     parser.add_argument('output_dir',
@@ -359,4 +763,4 @@ if __name__ == '__main__':
                                              args.seg_colindex)
 
     write_minimal_parallel(inventories, features, args.output_dir,
-                           args.expected_economy, args.jobs)
+                           args.jobs)

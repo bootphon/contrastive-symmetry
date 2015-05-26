@@ -7,38 +7,34 @@ Created on 2015-05-18
 from util import Partial1
 
 
-def expand_without_collapsing(frontier, node_to_expansions, is_expandable,
-                              is_good_expansion=None):
+def expand_without_collapsing(parents, parent_to_children, parent_filter=None):
     result = []
-    for element in frontier:
-        if is_expandable(element):
-            expansion = node_to_expansions(element, is_good_expansion)
+    for p in parents:
+        if not parent_filter or parent_filter(p):
+            children = parent_to_children(p)
         else:
-            expansion = []
-        result.append(expansion)
+            children = []
+        result.append(children)
     return result
 
 
-def collapse_expansions(frontier, expansions, is_good_expansion=None):
-    new_frontier = []
-    for i, element in enumerate(frontier):
-        if is_good_expansion:
-            checker = Partial1(is_good_expansion, element)
-        vast_expanse = expansions[i]
-        expanse = [e for e in vast_expanse if e not in new_frontier]
-        if is_good_expansion:
-            to_add = [e for e in expanse if checker.f1(e)]
+def collapse_children(parents, children_by_parent, child_filter=None):
+    result = []
+    for i, p in enumerate(parents):
+        if child_filter:
+            checker = Partial1(child_filter, p)
+        new_children = [e for e in children_by_parent[i] if e not in result]
+        if child_filter:
+            to_add = [e for e in new_children if checker.f1(e)]
         else:
-            to_add = expanse
-        new_frontier += to_add
-    return new_frontier
+            to_add = new_children
+        result += to_add
+    return result
 
 
-def expand(frontier, node_to_expansions, is_expandable,
-           is_good_expansion_pre_collapse=None,
-           is_good_expansion_post_collapse=None):
-    expansions = expand_without_collapsing(frontier, node_to_expansions,
-                                           is_expandable,
-                                           is_good_expansion_pre_collapse)
-    return collapse_expansions(frontier, expansions,
-                               is_good_expansion_post_collapse)
+def expand(parents, parent_to_children, parent_filter=None,
+           child_filter=None):
+    children_by_parent = expand_without_collapsing(parents, parent_to_children,
+                                                   parent_filter)
+    return collapse_children(parents, children_by_parent,
+                             child_filter)
