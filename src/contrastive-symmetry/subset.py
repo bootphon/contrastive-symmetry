@@ -6,14 +6,14 @@ Created on 2015-05-18
 import argparse
 import sys
 from inventory_io import read_inventories
-from util import has_one, get_all, which_contains, get_cols_except,\
+from util import has_one, get_all, get_cols_except,\
     collapse_those_containing
 from lattice import expand
 from inventory_util import to_row_partition
 from joblib.parallel import Parallel, delayed
 import os
-import math
 import numpy
+import random
 
 
 __version__ = '0.0.1'
@@ -163,8 +163,7 @@ class MinimalSubsetsFromBottom(object):
     def move_bottom_frontier(self):
         self.bottom_frontier = expand(self.bottom_frontier,
                                       self.whats_up,
-                                      parent_filter=self.should_look_up_from,
-                                      child_filter=self.not_ruled_out_bottom_up)
+                                      parent_filter=self.should_look_up_from)
 
     def search_bottom_frontier(self):
         self.found_on_bottom_frontier = [f for f in self.bottom_frontier if
@@ -623,10 +622,10 @@ class MinimalSubsetsFromBothEnds(object):
             self.dont_go_up_from += self.found_on_bottom_frontier
 
     def move_bottom_frontier(self):
-        if (self.odd_midpoint and \
-            self.top_depth == self.bottom_depth + 1 and \
-            self.top_depth == self.max_frontier_depth) or \
-            self.bottom_depth == self.max_frontier_depth:
+        if (self.odd_midpoint and
+                self.top_depth == self.bottom_depth + 1 and
+                self.top_depth == self.max_frontier_depth) or \
+                self.bottom_depth == self.max_frontier_depth:
             self.bottom_frontier = []
         else:
             self.bottom_frontier = expand(self.bottom_frontier,
@@ -640,10 +639,10 @@ class MinimalSubsetsFromBothEnds(object):
                                       self.is_minimal_from_top(n)]
 
     def move_top_frontier(self):
-        if (self.odd_midpoint and \
-            self.bottom_depth == self.top_depth + 1 and \
-            self.bottom_depth == self.max_frontier_depth) or \
-            self.top_depth == self.max_frontier_depth:
+        if (self.odd_midpoint and
+                self.bottom_depth == self.top_depth + 1 and
+                self.bottom_depth == self.max_frontier_depth) or \
+                self.top_depth == self.max_frontier_depth:
             self.top_frontier = []
         else:
             self.top_frontier = expand(self.top_frontier, self.whats_down,
@@ -681,31 +680,251 @@ class MinimalSubsetsFromBothEnds(object):
         return self.pop_all_found()
 
 
+class MinimalSubsetsFromBottomWithCost(MinimalSubsetsFromBottom):
+    def __init__(self, inventory, max_move_cost, seed=None):
+        super(MinimalSubsetsFromBottomWithCost, self).__init__(inventory)
+        self.move_cost_per_node = self.inventory_table.shape[0]
+        self.seed = seed
+        self.max_move_cost = max_move_cost
+        self.max_bottom_frontier_size = max_move_cost / self.move_cost_per_node
+        if max_move_cost < self.move_cost_per_node:
+            raise ValueError()
+        self.skipped = []
+        self.dont_go_down_from = []
+
+    def skipped_below(self, s):
+        return has_one(self.skipped, s.issuperset)
+    
+    def create_by_collapse_or_cached_partition(self, smaller, bigger,
+                                               feature_removed):
+        """Get a partition from the cache or create it by collapsing
+        an existing partition and cache it. Subset must differ from
+        partition by a single max ternary feature.
+        """
+        t2 = tuple(smaller)
+        if t2 not in self.partition_cache:
+            t1 = tuple(bigger)
+            existing_partition = self.create_or_cached_partition(t1)
+            new_partition = existing_partition[:]
+            vec = self.inventory_table[:, (feature_removed,)]
+            values = numpy.unique(vec)
+            if not len(values) <= 3:
+                raise ValueError()
+            if len(values) > 1:
+                f_partition = [numpy.where(vec == v)[0].tolist() for v
+                               in values]
+                residue_cols = get_cols_except(self.inventory_table, t1,
+                                               feature_removed)
+                for i in f_partition[0]:
+                    for j in f_partition[1]:
+                        if numpy.any(residue_cols[i, :] != residue_cols[j,:]):
+                            continue
+                        collapse_those_containing(new_partition, i, j)
+                if len(values) == 3:
+                    for i in f_partition[0]:
+                        for k in f_partition[2]:
+                            if numpy.any(residue_cols[i, :] != residue_cols[k,:]):
+                                continue
+                            collapse_those_containing(new_partition, i, k)
+                    for j in f_partition[1]:
+                        for k in f_partition[2]:
+                            if numpy.any(residue_cols[j, :] != residue_cols[k,:]):
+                                continue
+                            collapse_those_containing(new_partition, j, k)
+            self.partition_cache[t2] = new_partition
+        return self.partition_cache[t2]
+   
+
+    def is_not_rank_decrease(self, subset1, subset2):
+        """Check whether subset2 is not a rank decrease with respect to
+        subset1, i.e., whether the rank of the inventory table
+        with respect to subset1 stays the same when the feature(s) in
+        subset2 are added.
+        Presupposes that subset2 is a subset of subset1, and
+        raises a ValueError if this is not the case.
+        """
+        if not subset2.issubset(subset1):
+            raise ValueError()
+        remove_features = subset1 - subset2
+        if len(remove_features) != 1:
+            raise ValueError()
+        remove_feature = remove_features.pop()
+        partition_1 = self.create_or_cached_partition(subset1)
+        partition_2 = self.create_by_collapse_or_cached_partition(subset2,
+                                                                  subset1,
+                                                                  remove_feature)
+        rank1 = len(partition_1)
+        rank2 = len(partition_2)
+        if rank2 == rank1:
+            return True
+        return False
+
+    def not_ruled_out_in_general(self, proposal):
+        if not self.is_rank_more_than_one(proposal):
+            return False
+        if has_one(self.dont_go_up_from, proposal.issuperset):
+            return False
+        return True
+          
+    def not_ruled_out_top_down_dodgy(self, current, proposal):
+        if not self.skipped_below(proposal):
+            return False
+        if not self.not_ruled_out_in_general(proposal):
+            return False
+        if has_one(self.dont_go_down_from, proposal.issubset):
+            return False
+        if self.is_not_rank_decrease(current, proposal):
+            return True
+        else:
+            self.dont_go_down_from.append(proposal)
+            return False
+ 
+    def whats_down_dodgy(self, set_of_features):
+        result_l = []
+        for removed_feature in set_of_features:
+            elaboration = set_of_features - {removed_feature}
+            if self.not_ruled_out_top_down_dodgy(set_of_features, elaboration):
+                result_l.append(elaboration)
+        return result_l
+    
+    def move_dodgy_top_frontier(self):
+        self.dodgy_top_frontier = expand(self.dodgy_top_frontier,
+                                         self.whats_down_dodgy)
+        
+    def has_dodgy_down(self, set_of_features):
+        """Check to see if there is at least one way of removing a feature
+        from the node that isn't ruled out.
+        """
+        for removed_feature in set_of_features:
+            elaboration = set_of_features - {removed_feature}
+            if self.not_ruled_out_top_down_dodgy(set_of_features, elaboration):
+                return True
+        return False
+
+    def is_minimal_from_top_dodgy(self, node):
+        """Presupposes that node is a spec and has a subset in the skipped
+        nodes (is dodgy).
+        """
+        if self.has_dodgy_down(node):
+            return False
+        return True
+
+    def search_dodgy_top_frontier(self):
+        self.found_on_dodgy_top_frontier = [n for n in self.dodgy_top_frontier if
+                                            self.is_minimal_from_top_dodgy(n)]    
+
+    def descent_through_dodgy(self):
+        truly_minimal = []
+        still_dodgy = []
+        for c in self.dodgy_top_frontier:
+            if self.is_minimal_from_top_dodgy(c):
+                truly_minimal.append(c)
+            else:
+                still_dodgy.append(c)
+        self.dodgy_top_frontier = still_dodgy
+        while self.dodgy_top_frontier:
+            self.search_dodgy_top_frontier()
+            truly_minimal += self.found_on_dodgy_top_frontier
+            self.move_dodgy_top_frontier()
+        return truly_minimal
+
+        
+    def search_bottom_frontier(self):
+        candidates = [f for f in self.bottom_frontier if self.is_spec(f)]
+        if self.skipped:
+            print "checking skipped..."
+            self.dodgy_top_frontier = []
+            self.found_on_bottom_frontier = []
+            for c in candidates:
+                if self.skipped_below(c):
+                    self.dodgy_top_frontier.append(c)
+                else:
+                    self.found_on_bottom_frontier.append(c)
+            if self.dodgy_top_frontier:
+                print "found something dodgy; cleaning..."
+                self.found_on_bottom_frontier += self.descent_through_dodgy()
+                print ".. ok, clean"
+            else:
+                print ".. ok, no problem"
+        else:
+            self.found_on_bottom_frontier = candidates
+        if self.found_on_bottom_frontier:
+            self.dont_go_up_from += self.found_on_bottom_frontier    
+        
+
+    def move_bottom_frontier(self):
+        if len(self.bottom_frontier) <= self.max_bottom_frontier_size:
+            self.bottom_frontier = expand(self.bottom_frontier, self.whats_up,
+                                          parent_filter=self.should_look_up_from)
+        else:
+            random.seed(self.seed)
+            random.shuffle(self.bottom_frontier)
+            sub_frontier_ii = []
+            start_looking_at = 0
+            still_need = self.max_bottom_frontier_size - len(sub_frontier_ii)
+            stop_looking_at = start_looking_at + still_need
+            while len(sub_frontier_ii) < self.max_bottom_frontier_size and \
+                  stop_looking_at <= len(self.bottom_frontier):
+                indices_to_check = range(start_looking_at, stop_looking_at)
+                to_add_ii = [i for i in indices_to_check if
+                             self.should_look_up_from(self.bottom_frontier[i])]
+                sub_frontier_ii += to_add_ii
+                still_need = self.max_bottom_frontier_size - \
+                             len(sub_frontier_ii)
+                start_looking_at = stop_looking_at
+                stop_looking_at = min(start_looking_at + still_need,
+                                      len(self.bottom_frontier))
+            sub_frontier = [self.bottom_frontier[i] for i in sub_frontier_ii]
+            if stop_looking_at < len(self.bottom_frontier):
+                self.skipped += [c for c in
+                                 self.bottom_frontier[stop_looking_at:] if
+                                 not self.skipped_below(c)]
+            self.bottom_frontier = expand(sub_frontier, self.whats_up)
+
+    def next(self):
+        """Return the next minimal subset found, expanding
+        the frontier to find more if necessary.
+        """
+        if not self.found_on_bottom_frontier:
+            self.move_bottom_frontier()
+            while self.bottom_frontier:
+                self.search_bottom_frontier()
+                if self.found_on_bottom_frontier:
+                    break
+                else:
+                    self.move_bottom_frontier()
+            if not self.found_on_bottom_frontier:
+                raise StopIteration()
+        return self.found_on_bottom_frontier.pop()
+
+
+
 def output_filename(inventory):
     return inventory["Language_Name"] + ".csv"
 
 
-def iterator_bottom_up(inventory):
-    return MinimalSubsetsFromBottom(inventory)
+#def iterator_bottom_up(inventory):
+#    return MinimalSubsetsFromBottom(inventory)
+#
+#
+#def iterator_top_down(inventory):
+#    return MinimalSubsetsFromTop(inventory)
+#
+#
+#def iterator_both_sides(inventory):
+#    return MinimalSubsetsFromBothEnds(inventory)
+#
+#def choose_search(inventory):
+#    return iterator_both_sides
+#
 
-
-def iterator_top_down(inventory):
-    return MinimalSubsetsFromTop(inventory)
-
-
-def iterator_both_sides(inventory):
-    return MinimalSubsetsFromBothEnds(inventory)
-
-
-def choose_search(inventory):
-    return iterator_both_sides
-
-def search_and_write(inventory, iterator, output_nf, feature_names):
+def search_and_write(inventory, output_nf, feature_names, max_search_cost):
     with open(output_nf, "w") as hf:
         col_names = ["language", "num_features"] + feature_names
         hf.write(','.join(col_names) + '\n')
         hf.flush()
-        for feature_set in iterator(inventory):
+        for feature_set in MinimalSubsetsFromBottomWithCost(inventory,
+                                                            max_search_cost):
             prefix = [inventory["Language_Name"], str(len(feature_set))]
             feature_spec = ["T" if index in feature_set else "F"
                             for index in range(len(feature_names))]
@@ -713,15 +932,15 @@ def search_and_write(inventory, iterator, output_nf, feature_names):
         hf.write('\n')
 
 
-def write_minimal_parallel(inventories, features, out_dir, n_jobs):
+def write_minimal_parallel(inventories, features, out_dir, n_jobs,
+                           max_search_cost):
     if not os.path.isdir(out_dir):
         os.makedirs(out_dir)
-    search_fns = [choose_search(inv) for inv in inventories]
     output_nfs = [os.path.join(out_dir, output_filename(inv)) for
                   inv in inventories]
     Parallel(n_jobs=n_jobs)(delayed(search_and_write)(inventories[i],
-                                                      search_fns[i],
-                                                      output_nfs[i], features)
+                                                      output_nfs[i], features,
+                                                      max_search_cost)
                             for i in range(len(inventories)))
 
 
@@ -740,6 +959,8 @@ def create_parser():
     parser.add_argument('--jobs', type=int, default=1,
                         help='number of parallel jobs; '
                         'match CPU count if value is less than 1')
+    parser.add_argument('--max-frontier-expansion-cost', type=float,
+                        default=float("inf"))
     parser.add_argument('inventories_location',
                         help='csv containing all inventories')
     parser.add_argument('output_dir',
@@ -762,5 +983,7 @@ if __name__ == '__main__':
                                              args.language_colindex,
                                              args.seg_colindex)
 
+    if args.max_frontier_expansion_cost < float("inf"):
+        args.max_frontier_expansion_cost = int(args.max_frontier_expansion_cost)
     write_minimal_parallel(inventories, features, args.output_dir,
-                           args.jobs)
+                           args.jobs, args.max_frontier_expansion_cost)

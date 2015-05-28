@@ -20,6 +20,8 @@ def expand_without_collapsing(parents, parent_to_children, parent_filter=None):
 
 def collapse_children(parents, children_by_parent, child_filter=None):
     result = []
+    total_number_of_parents = len(children_by_parent)
+    print "total number of parents: " + str(total_number_of_parents)
     for i, p in enumerate(parents):
         if child_filter:
             checker = Partial1(child_filter, p)
