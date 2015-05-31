@@ -68,33 +68,7 @@ def stem_fn(fn):
     return result
 
 
-def to_row_partition(table):
-    """Partition the rows of table. Return a list where each element
-    is an index into the rows of table. The indices partition the rows
-    of table. Within each element, all indexed rows are equal.
-    If the table is empty (has no columns) return an empty list.
-    """
-    if table.shape[1] == 0:
-        result = []
-    elif table.shape[1] == 1:
-        vec = table[:,0]
-        values = numpy.unique(vec)
-        partition = [numpy.where(vec == v)[0].tolist() for v in values]
-        result = [s for s in partition if s]
-    else:
-        result = []
-        rows = []
-        for i in range(table.shape[0]):
-            try:
-                row_i = table[i,:]
-                j_existing = search_npvec(row_i, rows)
-                result[j_existing].append(i)
-            except ValueError:
-                result.append([i])
-                rows.append(row_i)
-    return result
-    
-    
+   
 def is_full_rank(table):
     """Determine if table is full rank.
     """

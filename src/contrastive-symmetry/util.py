@@ -70,4 +70,13 @@ def collapse_those_containing(collection_of_collections, i, j):
                                          collection_of_collections[group_j]
     del collection_of_collections[group_j]
 
+def binary_counts(vec):
+    values = np.unique(vec)
+    if len(values) > 2:
+        raise ValueError()
+    for val in values:
+        if val not in (-1,1):
+            raise ValueError()
+    is_minus = vec == -1
+    return sum(is_minus), sum(~is_minus)
         

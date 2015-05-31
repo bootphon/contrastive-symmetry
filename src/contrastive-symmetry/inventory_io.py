@@ -20,6 +20,33 @@ def default_value_feature_map(x):
 default_value_feature_npf = np.frompyfunc(default_value_feature_map, 1, 1)
 
 
+def read_feature_sets(fn, inventories, binary_only=True,
+                      feature_value_map=default_feature_value_map):
+    raw_table = pd.read_csv(fn, dtype=np.str)
+    result = {}
+    for i in range(raw_table.shape[0]):
+        language_name = raw_table.ix[i, 0]
+        feature_in_or_out = raw_table.ix[i, 2:]
+        true_indices = tuple(np.where(feature_in_or_out == "T")[0].tolist())
+        if language_name not in result:
+            result[language_name] = []
+        if not binary_only:
+            result[language_name].append(true_indices)
+        else:
+            for inv in inventories:
+                if inv["Language_Name"] == language_name:
+                    spec = np.array(inv["Feature_Table"][:,true_indices],
+                                    dtype="int")
+            is_all_binary = True
+            for v in np.nditer(spec):
+                if not v in (feature_value_map("-"),feature_value_map("+")):
+                    is_all_binary = False
+                    break
+            if is_all_binary:
+                result[language_name].append(true_indices)
+    return result
+
+
 def read_inventories(fn, skipcols, lgcol_index, segcol_index,
                      feature_value_npf=default_feature_value_npf):
     raw_table = pd.read_csv(fn, dtype=np.str)
