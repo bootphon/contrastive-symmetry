@@ -26,7 +26,7 @@ class BalanceIterator(object):
     def __init__(self, inventory, minimal_subsets):
         self.inventory_table = inventory["Feature_Table"]
         self.tree = FeatureLattice(minimal_subsets, self.inventory_table)
-        self.advance_node()
+        self.initialized = False
 
     def __iter__(self):
         return self
@@ -45,6 +45,11 @@ class BalanceIterator(object):
             raise
 
     def next(self):
+        if not self.initialized:
+            try:
+                self.advance_node()
+            except:
+                raise StopIteration()
         try:
             self.advance_subspace_within_node()
         except:
@@ -140,8 +145,8 @@ if __name__ == '__main__':
                                              args.seg_colindex)
     minimal_sets = read_feature_sets(args.minimal_location,
                                      inventories, binary_only=True)
-    if not len(minimal_sets) == len(inventories):
-        raise
+    inventories = [inv for inv in inventories if inv["Language_Name"] in
+                   minimal_sets]
     write_balance_parallel(inventories, minimal_sets, features,
                            args.output_dir, args.jobs)
     
