@@ -23,9 +23,10 @@ def balance(n_minus, n_plus):
 
 class BalanceIterator(object):
 
-    def __init__(self, inventory, minimal_subsets):
+    def __init__(self, inventory, minimal_subsets, max_dim=None):
         self.inventory_table = inventory["Feature_Table"]
-        self.tree = FeatureLattice(minimal_subsets, self.inventory_table)
+        self.tree = FeatureLattice(minimal_subsets, self.inventory_table,
+                                   max_dim+1)
         self.initialized = False
 
     def __iter__(self):
@@ -74,13 +75,15 @@ def subspace_id(columns, row, table, feature_names):
                         c in columns]
     return "'" + ":".join(feat_val_strings) + "'"
 
-def compile_and_write(inventory, minimal_sets, output_nf, feature_names):
+def compile_and_write(inventory, minimal_sets, max_dim, output_nf,
+                      feature_names):
     with open(output_nf, "w") as hf:
         col_names = ("language", "feature", "minus_count", "plus_count",
                      "balance", "subspace_dim", "subspace_id")
         hf.write(','.join(col_names) + '\n')
         hf.flush()
-        for balance_stat_tuple in BalanceIterator(inventory, minimal_sets):
+        for balance_stat_tuple in BalanceIterator(inventory, minimal_sets,
+                                                  max_dim):
             (feature_num, depth, subspace_features, subspace_rows,
              minus_count, plus_count, balance_) = balance_stat_tuple
             to_print = (inventory["Language_Name"], feature_names[feature_num],
@@ -90,18 +93,19 @@ def compile_and_write(inventory, minimal_sets, output_nf, feature_names):
                                                 inventory["Feature_Table"],
                                                 feature_names))
             hf.write(','.join(to_print) + '\n')
+            hf.flush()
         hf.write('\n')
 
 
-def write_balance_parallel(inventories, minimal_sets, features, out_dir,
-                           n_jobs):
+def write_balance_parallel(inventories, minimal_sets, features, max_dim,
+                           out_dir, n_jobs):
     if not os.path.isdir(out_dir):
         os.makedirs(out_dir)
     output_nfs = [os.path.join(out_dir, output_filename(inv)) for
                   inv in inventories]
     Parallel(n_jobs=n_jobs)(delayed(compile_and_write)(inventories[i],
                             minimal_sets[inventories[i]["Language_Name"]],
-                            output_nfs[i], features) for i in
+                            max_dim, output_nfs[i], features) for i in 
                             range(len(inventories)))
 
 
@@ -120,6 +124,9 @@ def create_parser():
     parser.add_argument('--jobs', type=int, default=1,
                         help='number of parallel jobs; '
                         'match CPU count if value is less than 1')
+    parser.add_argument('--max-dim', type=int, default=None,
+                        help='maximum dimension of restricting subset to'
+                        'report on')
     parser.add_argument('inventories_location',
                         help='csv containing all inventories')
     parser.add_argument('minimal_location',
@@ -147,6 +154,6 @@ if __name__ == '__main__':
                                      inventories, binary_only=True)
     inventories = [inv for inv in inventories if inv["Language_Name"] in
                    minimal_sets]
-    write_balance_parallel(inventories, minimal_sets, features,
+    write_balance_parallel(inventories, minimal_sets, features, args.max_dim,
                            args.output_dir, args.jobs)
     

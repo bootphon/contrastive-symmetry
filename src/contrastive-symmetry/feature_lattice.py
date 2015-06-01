@@ -10,8 +10,9 @@ from partition import PartitionCached
 
 class FeatureLattice(object):
     
-    def __init__(self, feature_sets, inventory_table):
+    def __init__(self, feature_sets, inventory_table, max_depth=None):
         self.depth = 0
+        self.max_depth = max_depth
         self.feature_sets = feature_sets
         self.frontier = [(set(), None, range(len(feature_sets)))]
         self.inventory_table = inventory_table
@@ -57,6 +58,8 @@ class FeatureLattice(object):
         try:
             value = self.to_do.pop()
         except:
+            if self.max_depth and self.depth == self.max_depth:
+                raise StopIteration()
             try:
                 self.move_frontier()
                 value = self.to_do.pop()
