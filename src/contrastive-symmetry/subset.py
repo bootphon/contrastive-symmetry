@@ -6,12 +6,10 @@ Created on 2015-05-18
 import argparse
 import sys
 from inventory_io import read_inventories
-from util import has_one, get_all, get_cols_except,\
-    collapse_those_containing
+from util import has_one
 from lattice import expand
 from joblib.parallel import Parallel, delayed
 import os
-import numpy
 import random
 from partition import PartitionCached
 

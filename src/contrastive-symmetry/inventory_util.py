@@ -87,8 +87,4 @@ def is_full_rank(table):
         except ValueError:
             rows.append(row_i)
     return True
-        
-
-def get_hyperplane(table, hyperplane):
-    pass
     
