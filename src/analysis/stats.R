@@ -113,6 +113,20 @@ sbi_economy_binned <- function(sb, nseg, ncfeat, bins=5) {
   return(result)
 }
 
+y_x_binned <- function(y_meas, x_meas, bins=5) {
+  x_binned <- cut(x_meas, breaks=bins)
+  y_zscores <- ddply(data.frame(y=y_meas, x=x_binned,
+                                original_item=1:length(y_meas)),
+                     .(x_meas),
+                        .fun=function(d)
+                          data.frame(y_zscores=zscore(d$y),
+                                     original_item=d$original_item))
+  y_zscores <- y_zscores[order(y_zscores$original_item),]
+  result <- y_zscores$y_zscores
+  return(result)
+}
+
+
 add_cstats <- function(d) {
   result <- d
   result$nseg_by_ncfeat <- result %$% nseg_by_ncfeat(nseg, ncfeat)

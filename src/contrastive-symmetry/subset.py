@@ -12,6 +12,7 @@ from joblib.parallel import Parallel, delayed
 import os
 import random
 from partition import PartitionCached
+from inventory_util import which_binary
 
 
 __version__ = '0.0.1'
@@ -32,7 +33,7 @@ class MinimalSubsetsFromBottom(object):
     set.
     """
 
-    def __init__(self, inventory):
+    def __init__(self, inventory, binary):
         """
         Args:
             inventory: an inventory, as returned by
@@ -44,7 +45,13 @@ class MinimalSubsetsFromBottom(object):
         self.found_on_bottom_frontier = []
         self.dont_go_up_from = []
         self.inventory_table = inventory["Feature_Table"]
-        self.feature_nums = range(self.inventory_table.shape[1])
+        if binary:
+            binary_feats_bool = which_binary(self.inventory_table)
+            self.feature_nums = [f for f in
+                                 range(self.inventory_table.shape[1]) if
+                                 binary_feats_bool[f]]
+        else:
+            self.feature_nums = range(self.inventory_table.shape[1])
         self.partitions = PartitionCached(self.inventory_table)
 
     def __iter__(self):
@@ -471,8 +478,9 @@ class MinimalSubsetsFromBothEnds(object):
 
 
 class MinimalSubsetsFromBottomWithCost(MinimalSubsetsFromBottom):
-    def __init__(self, inventory, max_move_cost, seed=None):
-        super(MinimalSubsetsFromBottomWithCost, self).__init__(inventory)
+    def __init__(self, inventory, max_move_cost, binary, seed=None):
+        super(MinimalSubsetsFromBottomWithCost, self).__init__(inventory,
+                                                               binary)
         self.move_cost_per_node = self.inventory_table.shape[0]
         self.seed = seed
         self.max_move_cost = max_move_cost
@@ -506,14 +514,14 @@ class MinimalSubsetsFromBottomWithCost(MinimalSubsetsFromBottom):
             return False
         return True
           
-    def not_ruled_out_top_down_dodgy(self, current, proposal):
+    def not_ruled_out_top_down_dodgy(self, current, proposal, removed_feature):
         if not self.skipped_below(proposal):
             return False
         if not self.not_ruled_out_in_general(proposal):
             return False
         if has_one(self.dont_go_down_from, proposal.issubset):
             return False
-        if self.is_not_rank_decrease(current, proposal):
+        if self.is_not_rank_decrease(current, removed_feature):
             return True
         else:
             self.dont_go_down_from.append(proposal)
@@ -523,7 +531,8 @@ class MinimalSubsetsFromBottomWithCost(MinimalSubsetsFromBottom):
         result_l = []
         for removed_feature in set_of_features:
             elaboration = set_of_features - {removed_feature}
-            if self.not_ruled_out_top_down_dodgy(set_of_features, elaboration):
+            if self.not_ruled_out_top_down_dodgy(set_of_features, elaboration,
+                                                 removed_feature):
                 result_l.append(elaboration)
         return result_l
     
@@ -537,7 +546,8 @@ class MinimalSubsetsFromBottomWithCost(MinimalSubsetsFromBottom):
         """
         for removed_feature in set_of_features:
             elaboration = set_of_features - {removed_feature}
-            if self.not_ruled_out_top_down_dodgy(set_of_features, elaboration):
+            if self.not_ruled_out_top_down_dodgy(set_of_features, elaboration,
+                                                 removed_feature):
                 return True
         return False
 
@@ -643,13 +653,15 @@ def output_filename(inventory):
     return inventory["Language_Name"] + ".csv"
 
 
-def search_and_write(inventory, output_nf, feature_names, max_search_cost):
+def search_and_write(inventory, output_nf, feature_names, max_search_cost,
+                     binary):
     with open(output_nf, "w") as hf:
         col_names = ["language", "num_features"] + feature_names
         hf.write(','.join(col_names) + '\n')
         hf.flush()
         for feature_set in MinimalSubsetsFromBottomWithCost(inventory,
-                                                            max_search_cost):
+                                                            max_search_cost,
+                                                            binary):
             prefix = [inventory["Language_Name"], str(len(feature_set))]
             feature_spec = ["T" if index in feature_set else "F"
                             for index in range(len(feature_names))]
@@ -658,14 +670,15 @@ def search_and_write(inventory, output_nf, feature_names, max_search_cost):
 
 
 def write_minimal_parallel(inventories, features, out_dir, n_jobs,
-                           max_search_cost):
+                           max_search_cost, binary):
     if not os.path.isdir(out_dir):
         os.makedirs(out_dir)
     output_nfs = [os.path.join(out_dir, output_filename(inv)) for
                   inv in inventories]
     Parallel(n_jobs=n_jobs)(delayed(search_and_write)(inventories[i],
                                                       output_nfs[i], features,
-                                                      max_search_cost)
+                                                      max_search_cost,
+                                                      binary)
                             for i in range(len(inventories)))
 
 
@@ -686,6 +699,7 @@ def create_parser():
                         'match CPU count if value is less than 1')
     parser.add_argument('--max-frontier-expansion-cost', type=float,
                         default=float("inf"))
+    parser.add_argument('--binary', action='store_true')
     parser.add_argument('inventories_location',
                         help='csv containing all inventories')
     parser.add_argument('output_dir',
@@ -711,4 +725,5 @@ if __name__ == '__main__':
     if args.max_frontier_expansion_cost < float("inf"):
         args.max_frontier_expansion_cost = int(args.max_frontier_expansion_cost)
     write_minimal_parallel(inventories, features, args.output_dir,
-                           args.jobs, args.max_frontier_expansion_cost)
+                           args.jobs, args.max_frontier_expansion_cost,
+                           args.binary)

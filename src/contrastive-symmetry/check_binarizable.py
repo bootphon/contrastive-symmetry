@@ -5,13 +5,10 @@ Created on 2015-06-03
 '''
 import argparse
 import sys
-from inventory_io import read_inventories, read_feature_sets
+from inventory_io import read_inventories
+from inventory_util import is_full_rank, which_binary
 
 __version__ = '0.0.1'
-
-def spec_id(feature_set, feature_names):
-    feat_name_strings = [feature_names[c] for c in feature_set]
-    return "'" + ":".join(feat_name_strings) + "'"
 
 
 def create_parser():
@@ -31,8 +28,6 @@ def create_parser():
                         'match CPU count if value is less than 1')
     parser.add_argument('inventories_location',
                         help='csv containing all inventories')
-    parser.add_argument('minimal_location',
-                        help='csv containing all minimal feature sets')
     parser.add_argument('output_file',
                         help='output file')
     return parser
@@ -52,18 +47,13 @@ if __name__ == '__main__':
                                              args.skipcols,
                                              args.language_colindex,
                                              args.seg_colindex)
-    minimal_sets = read_feature_sets(args.minimal_location,
-                                     inventories, binary_only=True)
     with open(args.output_file, "w") as hf:
-        col_names = ["language", "num_features"] + features + ["spec_id"]
-        hf.write(','.join(col_names) + '\n')
-        hf.flush()
-        for language in minimal_sets:
-            feature_sets = minimal_sets[language]
-            for fs in feature_sets:
-                prefix = [language, str(len(fs))]
-                feature_spec = ["T" if index in fs else "F" for index
-                                in range(len(features))]
-                hf.write(','.join(prefix + feature_spec +
-                                  [spec_id(fs, features)]) + '\n')
+        for inv in inventories:
+            inv_table = inv["Feature_Table"]
+            binary_feats = which_binary(inv_table)
+            inv_binary_only = inv_table[:,binary_feats]
+            if is_full_rank(inv_binary_only):
+                hf.write(inv["Language_Name"] + '\n')
+                hf.flush()
         hf.write('\n')
+

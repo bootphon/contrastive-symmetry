@@ -5,7 +5,7 @@ import sys
 from inventory_io import write_inventory, read_inventories
 import numpy as np
 from stats import size_table, segment_value_table, feature_table
-from inventory_util import stem_fn
+from inventory_util import stem_fn, which_binary, is_full_rank
 from joblib import Parallel, delayed
 from joblib.memory import Memory
 
@@ -36,9 +36,12 @@ def create_parser():
                         help='index of column containing language name')
     parser.add_argument('--seg-colindex', type=int, default=1,
                         help='index of column containing segment label')
+    parser.add_argument('--props-from', default=None,
+                        help='a separate csv to get the statistics from')
     parser.add_argument('--matrix', action='store_true')
     parser.add_argument('--feature', action='store_true')
     parser.add_argument('--segment', action='store_true')
+    parser.add_argument('--binary-segment', action='store_true')
     parser.add_argument('--all', action='store_true')
     parser.add_argument('--tmp_directory', default='/tmp',
                         help='directory to store temporary files')
@@ -68,6 +71,21 @@ def sample_segments(size, seed, segment_probs, segments, segment_names):
     np.random.seed()
     return [segment_names[i] for i in s], [segments[i] for i in s]
 
+
+def sample_binary_segments(size, seed, segment_probs, segments, segment_names):
+    seg_indices = range(len(segment_probs))
+    np.random.seed(seed)
+    binary = False
+    while not binary:
+        s = np.random.choice(seg_indices, size, replace=False, p=segment_probs)
+        seg_feature_vals = [segments[i] for i in s]
+        inv_table = np.array(seg_feature_vals)
+        binary_feats = which_binary(inv_table)
+        inv_binary_only = inv_table[:,binary_feats]
+        if is_full_rank(inv_binary_only):
+            binary = True
+    np.random.seed()
+    return [segment_names[i] for i in s], seg_feature_vals 
 
 def int_to_features(i, nfeat):
     np_rep = np.binary_repr(i, width=nfeat)
@@ -216,6 +234,10 @@ if __name__ == "__main__":
     all_sizes = [size_table(ii[0]) for ii in all_inventory_tuples]
     all_output_fn_prefixes = [os.path.join(args.outdir, stem_fn(l))
                               for l in args.inventories_locations]
+    if args.props_from:
+        props_from = read_inventories(args.props_from, args.skipcols,
+                                      args.language_colindex,
+                                      args.seg_colindex)
 
     for i, inventory_tuple in enumerate(all_inventory_tuples):
         inventories = inventory_tuple[0]
@@ -225,6 +247,28 @@ if __name__ == "__main__":
             def sample_fn(size, seed):
                 return sample_matrix(size, seed, features)
             out_fn = all_output_fn_prefixes[i] + MATRIX_SUFFIX
+            randints = create_inventories(sizes, sample_fn, args.tmp_directory,
+                                          args.initial_seed, args.jobs)
+            write_inventories(out_fn, randints, features)
+        if args.binary_segment:
+            if props_from:
+                segtable = segment_value_table(props_from[0])
+                segnames = segtable[0].keys()
+                segvals = segtable[0].values()
+                segcounts = segtable[1].values()
+                segprobs = [c/float(sum(segcounts)) for c in segcounts]
+            else:
+                all_segtables = [segment_value_table(ii[0])
+                             for ii in all_inventory_tuples]
+                segnames = all_segtables[i][0].keys()
+                segvals = all_segtables[i][0].values()
+                segcounts = all_segtables[i][1].values()
+                segprobs = [c / float(sum(segcounts)) for c in segcounts]
+
+            def sample_fn(size, seed):
+                return sample_binary_segments(size, seed, segprobs, segvals,
+                                              segnames)
+            out_fn = all_output_fn_prefixes[i] + SEGMENT_SUFFIX
             randints = create_inventories(sizes, sample_fn, args.tmp_directory,
                                           args.initial_seed, args.jobs)
             write_inventories(out_fn, randints, features)
