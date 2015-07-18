@@ -12,7 +12,7 @@ from joblib.parallel import Parallel, delayed
 import os
 import random
 from partition import PartitionCached
-from inventory_util import which_binary
+from inventory_io import which_binary
 
 
 __version__ = '0.0.1'

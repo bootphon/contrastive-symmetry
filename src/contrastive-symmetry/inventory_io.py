@@ -35,11 +35,12 @@ def read_feature_sets(fn, inventories, binary_only=True,
         else:
             for inv in inventories:
                 if inv["Language_Name"] == language_name:
-                    spec = np.array(inv["Feature_Table"][:,true_indices],
-                                    dtype="int")
+                    spec = inv["Feature_Table"]
+                    break
+            binary_feats = which_binary(spec)
             is_all_binary = True
-            for v in np.nditer(spec):
-                if not v in (feature_value_map("-"),feature_value_map("+")):
+            for f in true_indices:
+                if not binary_feats[f]:
                     is_all_binary = False
                     break
             if is_all_binary:
@@ -80,3 +81,9 @@ def write_inventory(inventory, fn, value_feature_npf=default_value_feature_npf,
             row_i = ','.join([inventory['Language_Name'], names[i]] +
                              value_feature_npf(seg).tolist())
             hf.write(row_i + '\n')
+    
+def is_binary(x):
+    return len(np.unique(x)) == 2
+
+def which_binary(table):
+    return np.apply_along_axis(is_binary, 0, table)
