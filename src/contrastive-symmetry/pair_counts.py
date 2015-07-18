@@ -14,6 +14,8 @@ from util import get_cols_except
 __version__ = '0.0.1'
 
 def minimal_count(table, features, on):
+    if table.shape[0] == 2 and len(features) == 1:
+        return 1
     full_rank = table.shape[0]
     table_reduced = get_cols_except(table, features, on)
     reduced_partition = to_row_partition(table_reduced)

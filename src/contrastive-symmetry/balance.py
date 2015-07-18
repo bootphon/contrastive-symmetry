@@ -49,15 +49,17 @@ class BalanceIterator(object):
         if not self.initialized:
             try:
                 self.advance_node()
+                self.initialized = True
             except:
                 raise StopIteration()
-        try:
-            self.advance_subspace_within_node()
-        except:
+        else:
             try:
-                self.advance_node()
+                self.advance_subspace_within_node()
             except:
-                raise StopIteration()
+                try:
+                    self.advance_node()
+                except:
+                    raise StopIteration()
         vec = self.inventory_table[self.subspace, self.current_feature]
         side_1, side_2 = binary_counts(vec)
         return (self.current_feature, self.tree.depth - 1,

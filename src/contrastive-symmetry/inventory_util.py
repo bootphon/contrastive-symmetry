@@ -88,9 +88,3 @@ def is_full_rank(table):
             rows.append(row_i)
     return True
     
-    
-def is_binary(x):
-    return len(numpy.unique(x)) == 2
-
-def which_binary(table):
-    return numpy.apply_along_axis(is_binary, 0, table)

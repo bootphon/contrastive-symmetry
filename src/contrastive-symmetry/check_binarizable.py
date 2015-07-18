@@ -5,8 +5,8 @@ Created on 2015-06-03
 '''
 import argparse
 import sys
-from inventory_io import read_inventories
-from inventory_util import is_full_rank, which_binary
+from inventory_io import read_inventories, which_binary
+from inventory_util import is_full_rank
 
 __version__ = '0.0.1'
 

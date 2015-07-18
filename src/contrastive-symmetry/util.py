@@ -74,9 +74,10 @@ def binary_counts(vec):
     values = np.unique(vec)
     if len(values) > 2:
         raise ValueError()
-    for val in values:
-        if val not in (-1,1):
-            raise ValueError()
-    is_minus = vec == -1
+    if len(values) == 2 and values[0] == 0:
+        minus_val = 0
+    else:
+        minus_val = -1
+    is_minus = vec == minus_val
     return sum(is_minus), sum(~is_minus)
         

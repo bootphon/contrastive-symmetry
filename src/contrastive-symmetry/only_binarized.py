@@ -7,8 +7,7 @@ Created on 2015-06-05
 
 import argparse
 import sys
-from inventory_io import read_inventories, read_feature_sets
-from inventory_util import which_binary
+from inventory_io import read_inventories, read_feature_sets, which_binary
 
 __version__ = '0.0.1'
 
