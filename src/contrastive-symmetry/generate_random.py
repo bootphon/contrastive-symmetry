@@ -5,7 +5,8 @@ import sys
 from inventory_io import write_inventory, read_inventories
 import numpy as np
 from stats import size_table, segment_value_table, feature_table
-from inventory_util import stem_fn, which_binary, is_full_rank
+from inventory_util import stem_fn, is_full_rank
+from inventory_io import which_binary
 from joblib import Parallel, delayed
 from joblib.memory import Memory
 

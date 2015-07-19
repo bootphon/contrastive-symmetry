@@ -9,7 +9,21 @@ opt_id_cols <- c("language", "segment_type", "inventory_type")
 feature_id_cols <- c("language")
 
 zscore <- function(x) {
-  return((x - mean(x, na.rm=TRUE))/sd(x, na.rm=TRUE))
+  if (length(x) == 1) {
+    return(0)
+  } else if (sd(x, na.rm=TRUE) == 0) {
+    return(x - mean(x, na.rm=TRUE))
+  } else{
+    return((x - mean(x, na.rm=TRUE))/sd(x, na.rm=TRUE))
+  }
+}
+zscore_y <- function(x, y) {
+  return(zscore(y))
+}
+
+lmresid <- function(x, y) {
+  m <- lm(y ~ x)
+  return(resid(m))
 }
 
 kld <- function(p_dist, q_dist) {
@@ -113,16 +127,16 @@ sbi_economy_binned <- function(sb, nseg, ncfeat, bins=5) {
   return(result)
 }
 
-y_x_binned <- function(y_meas, x_meas, bins=5) {
+y_x_binned <- function(y_meas, x_meas, bins=5, resid_fn=zscore_y) {
   x_binned <- cut(x_meas, breaks=bins)
   y_zscores <- ddply(data.frame(y=y_meas, x=x_binned,
+                                x_orig=x_meas,
                                 original_item=1:length(y_meas)),
-                     .(x_meas),
-                        .fun=function(d)
-                          data.frame(y_zscores=zscore(d$y),
+                     .(x), .fun=function(d)
+                          data.frame(y_zscores=resid_fn(d$x_orig, d$y),
                                      original_item=d$original_item))
-  y_zscores <- y_zscores[order(y_zscores$original_item),]
-  result <- y_zscores$y_zscores
+  y_zscores_ <- y_zscores[order(y_zscores$original_item),]
+  result <- y_zscores_$y_zscores
   return(result)
 }
 
