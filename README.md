@@ -28,19 +28,24 @@ by inventory
 
 **src/contrastive-symmetry** Python code for generating specs and stats
 
-##To generate \_size files
+##To generate random inventories
 
 **FIXME DOCS**
 
 ##To generate specs/ (minimal feature subsets)
 
-**FIXME DOCS**
+- mkdir -p TMP
+- python src/contrastive-symmetry/subset.py --binary --max-frontier-expansion-cost=30000 --jobs=[NJOBS] data/[INVENTORY].csv TMP/s\_[INVENTORY]
 - bash compile\_stats.sh TMP/s\_[INVENTORY] > specs/[INVENTORY]\_specs.csv
+
+##To generate \_size files
+
+- Rscript --vanilla minfeat.R data/[INVENTORY].csv stats/[INVENTORY]\_size.csv
 
 ##To generate \_minfeat files
 
 - Ensure specs is appropriately populated (see above)
-- Rscript minfeat.R specs/[INVENTORY]\_specs.csv stats/[INVENTORY]\_minfeat.csv
+- Rscript --vanilla minfeat.R specs/[INVENTORY]\_specs.csv stats/[INVENTORY]\_minfeat.csv
 
 ##To generate \_tbalance files
 
@@ -60,48 +65,5 @@ by inventory
 ##To generate \_pair\_counts\_med files
 
 - Ensure \_pair\_counts files are generated
-- Rscript collapse_pair_counts.R stats/[INVENTORY]_pair_counts.csv 
-stats/[INVENTORY]_pair_counts_med.csv
+- Rscript --vanilla collapse_pair_counts.R stats/[INVENTORY]_pair_counts.csv  stats/[INVENTORY]_pair_counts_med.csv
 
-
-To generate random baseline inventories
----------------------------------------
-
-python src/contrastive-symmetry/generate\_random.py --all --outdir=data
-  --initial-seed=1 --jobs=100 data/inv.csv data/stop.csv data/vowel.csv
-  data/cons.csv 
-
-  * use --matrix, --feature, --segment, or some combination, instead of
-  --all to generate only uniform matrix baseline, independent data-matched
-  feature baseline, and independent data-matched segment baseline
-  * replace inventory source file(s) with whatever files you want to base
-  the stats on; baselines will be generated for all of them
-  * random seed changes for each inventory, but within each (source file x
-  baseline type) pair goes through the same fixed sequence, starting at
-  initial-seed, if initial-seed is specified; otherwise the seed is never
-  set
-  
-To compute contrastive specification statistics
------------------------------------------------
-
-python src/contrastive-symmetry/contrast\_stats.py --outdir=contrast\_stats 
-  --permutation-seed=1 --jobs=100 data/\*.csv
-
-  * replace inventory source file(s) with whatever files you want to base
-  the stats on
-  * default number of permutations is 100; random with a seed that can be
-  fixed (as here, set to 1) or variable
-  
-To generate a document summarizing the analysis, including all figures from the slides
--------------------------------------
-
-  * knit the file analysis/analysis.Rmd using analysis/ as the working directory
- 
-FILES
------
-
-  * **docs/ijn\_102914.pdf:** Slides 10/29/2014
-  * **docs/paris8\_020415.pdf:** Slides 02/04/2015
-  * **docs/paris3\_021315.pdf:** Slides 10/29/2015
-  * **docs/dgfs\_leipzig\_030515\_021315.pdf:** Slides (DGfS) 03/05/2015
-  

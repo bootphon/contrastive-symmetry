@@ -14,55 +14,128 @@ from joblib.memory import Memory
 __version__ = '0.0.1'
 
 MATRIX_SUFFIX = "_random_matrix.csv"
+BETABIN_SUFFIX = "_random_betabin.csv"
 SEGMENT_SUFFIX = "_random_segment.csv"
 FEATURE_SUFFIX = "_random_feature.csv"
 
-
-def create_parser():
-    """Return command-line parser."""
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--version', action='version',
-                        version='%(prog)s ' + __version__)
-    parser.add_argument('--jobs', type=int, default=1,
-                        help='number of parallel jobs; '
-                        'match CPU count if value is less than 1')
-    parser.add_argument('--initial-seed', type=int, default=None,
-                        help='initial random seed for inventories, increased '
-                        'by one for each in a predictable but meaningless '
-                        'order (default: variable)')
-    parser.add_argument('--skipcols', type=int, default=2,
-                        help='number of columns to skip before assuming '
-                        'the rest is features')
-    parser.add_argument('--language-colindex', type=int, default=0,
-                        help='index of column containing language name')
-    parser.add_argument('--seg-colindex', type=int, default=1,
-                        help='index of column containing segment label')
-    parser.add_argument('--props-from', default=None,
-                        help='a separate csv to get the statistics from')
-    parser.add_argument('--matrix', action='store_true')
-    parser.add_argument('--feature', action='store_true')
-    parser.add_argument('--segment', action='store_true')
-    parser.add_argument('--binary-segment', action='store_true')
-    parser.add_argument('--all', action='store_true')
-    parser.add_argument('--tmp_directory', default='/tmp',
-                        help='directory to store temporary files')
-    parser.add_argument('--outdir', help='output directory', default='.')
-    parser.add_argument('inventories_locations', help='list of csv files'
-                        'containing independent sets of inventories; '
-                        'each set of inventories will be paired with its own'
-                        'set of random inventories', nargs='+')
-    return parser
+def rb(p):
+    if np.random.random() <= p:
+        return 1
+    else:
+        return -1
 
 
-def parse_args(arguments):
-    """Parse command-line options."""
-    parser = create_parser()
-    args = parser.parse_args(arguments)
-    if args.all:
-        args.matrix = True
-        args.segment = True
-        args.feature = True
-    return args
+class MatrixIndepRowsSampler(object):
+    def __init__(self, feature_probs):
+        self.feature_probs = feature_probs
+    
+    def r(self, i):
+        return rb(self.feature_probs[i])
+
+class MatrixBetaBinomSampler(object):
+    def __init__(self, feature_alphas):
+        self.feature_alphas = feature_alphas
+        self.ca = [0]*len(feature_alphas) 
+        self.cb = [0]*len(feature_alphas) 
+    
+    def r(self, i):
+        alpha = self.feature_alphas[i]
+        beta = 1.0
+        p = np.random.beta(alpha + self.ca[i], beta + self.cb[i])
+        result = rb(p)
+        if result == 1:
+            self.ca[i] += 1
+        else:
+            self.cb[i] += 1
+        return result
+
+
+def int_to_features(i, nfeat):
+    np_rep = np.binary_repr(i, width=nfeat)
+    our_rep = [[-1, 1][int(c)] for c in np_rep]
+    return our_rep
+
+
+def features_to_int(binary_repr):
+    binary_repr_std = ((binary_repr + 1) / 2)
+    result = 0
+    for i, digit in enumerate(range(len(binary_repr) - 1, -1, -1)):
+        result += pow(2, i) * binary_repr_std[digit]
+    return result
+
+
+def rows_not_attested(m):
+    if m.shape[1] == 1:
+        values = np.unique(m[:, 0])
+        if len(values) == 2:
+            return []
+        elif len(values) == 0:
+            return [1, -1]
+        elif values[0] == 1:
+            return [-1]
+        elif values[0] == -1:
+            return [1]
+    else:
+        pos = m[m[:, 0] == 1, 1:]
+        neg = m[m[:, 0] == -1, 1:]
+        result = []
+        if pos.shape[0] == 0 or len(rows_not_attested(pos)) > 0:
+            result += [1]
+        if neg.shape[0] == 0 or len(rows_not_attested(neg)) > 0:
+            result += [-1]
+        return result
+
+
+def remaining_ways_to_fill_in_zeroes_of_row(matrix, row):
+    which_nonzero_row = row != 0
+    which_zero_row = ~which_nonzero_row
+    nonzero_row = row[which_nonzero_row]
+    nonzero_matrix = matrix[:, which_nonzero_row]
+    rows_matching_row = np.where((nonzero_matrix == nonzero_row).all(axis=1))
+    if len(rows_matching_row[0]) == 0:
+        return (-1, 1)
+    zero_matrix = matrix[rows_matching_row[0], :][:, which_zero_row]
+    return rows_not_attested(zero_matrix)
+
+
+def sample_feature_generic(size, seed, features, feature_sampler_class,
+                           initial_params):
+    nfeat = len(features)
+    seg_values = np.zeros((size, nfeat), dtype=int)
+    seg_names = [''] * size
+    feature_sampler = feature_sampler_class(initial_params)
+    np.random.seed(seed)
+    for i_seg in range(size):
+        seg_values[i_seg, 0] = feature_sampler.r(0)
+        for i_feat in range(1, nfeat):
+            previous = seg_values[0:i_seg, :]
+            current = seg_values[i_seg,:]
+            val = remaining_ways_to_fill_in_zeroes_of_row(previous, current)
+            if len(val) == 2:
+                seg_values[i_seg, i_feat] = feature_sampler.r(i_feat)
+            elif len(val) == 1:
+                seg_values[i_seg, i_feat] = val[0]
+            else:
+                assert False
+        seg_names[i_seg] = 's' + str(features_to_int(seg_values[i_seg, :]))
+    np.random.seed()
+    return seg_names, seg_values
+
+    
+
+
+def sample_matrix(size, seed, features):
+    nfeat = len(features)
+    feature_probs = [1 / 2.] * nfeat
+    return sample_feature_generic(size, seed, features, MatrixIndepRowsSampler,
+                                  feature_probs)
+
+
+def sample_matrix_betabin(size, seed, features):
+    nfeat = len(features)
+    feature_alphas = [1.] * nfeat
+    return sample_feature_generic(size, seed, features, MatrixBetaBinomSampler,
+                                  feature_alphas)
 
 
 def sample_segments(size, seed, segment_probs, segments, segment_names):
@@ -87,90 +160,6 @@ def sample_binary_segments(size, seed, segment_probs, segments, segment_names):
             binary = True
     np.random.seed()
     return [segment_names[i] for i in s], seg_feature_vals 
-
-def int_to_features(i, nfeat):
-    np_rep = np.binary_repr(i, width=nfeat)
-    our_rep = [[-1, 1][int(c)] for c in np_rep]
-    return our_rep
-
-
-def features_to_int(binary_repr):
-    binary_repr_std = ((binary_repr + 1) / 2)
-    result = 0
-    for i, digit in enumerate(range(len(binary_repr) - 1, -1, -1)):
-        result += pow(2, i) * binary_repr_std[digit]
-    return result
-
-
-def random_feature(p):
-    if np.random.random() <= p:
-        return 1
-    else:
-        return -1
-
-
-def remaining_values(m):
-    if m.shape[1] == 1:
-        values = np.unique(m[:, 0])
-        if len(values) == 2:
-            return []
-        elif len(values) == 0:
-            return [1, -1]
-        elif values[0] == 1:
-            return [-1]
-        elif values[0] == -1:
-            return [1]
-    else:
-        pos = m[m[:, 0] == 1, 1:]
-        neg = m[m[:, 0] == -1, 1:]
-        result = []
-        if pos.shape[0] == 0 or len(remaining_values(pos)) > 0:
-            result += [1]
-        if neg.shape[0] == 0 or len(remaining_values(neg)) > 0:
-            result += [-1]
-        return result
-
-
-def possible_values_remaining_first_zero(m, v):
-    nonzero_v = v != 0
-    zero_v = ~nonzero_v
-    v_nonzero_v = v[nonzero_v]
-    m_nonzero_v = m[:, nonzero_v]
-    rows_matching_v = np.where((m_nonzero_v == v_nonzero_v).all(axis=1))
-    if len(rows_matching_v[0]) == 0:
-        return (-1, 1)
-    m_zero_v = m[rows_matching_v[0], :][:, zero_v]
-    return remaining_values(m_zero_v)
-
-
-def sample_feature(size, seed, features, feature_probs):
-    nfeat = len(features)
-    seg_values = np.zeros((size, nfeat), dtype=int)
-    seg_names = [''] * size
-    np.random.seed(seed)
-    for i_seg in range(size):
-        seg_values[i_seg, 0] = random_feature(feature_probs[0])
-        for i_feat in range(1, nfeat):
-            val = possible_values_remaining_first_zero(
-                seg_values[0:i_seg, :], seg_values[i_seg,:])
-            if len(val) == 2:
-                seg_values[i_seg, i_feat] = random_feature(
-                    feature_probs[i_feat])
-            elif len(val) == 1:
-                seg_values[i_seg, i_feat] = val[0]
-            else:
-                assert False
-        seg_names[i_seg] = 's' + str(features_to_int(seg_values[i_seg, :]))
-    np.random.seed()
-    return seg_names, seg_values
-
-
-def sample_matrix(size, seed, features):
-    nfeat = len(features)
-    feature_probs = [1 / 2.] * nfeat
-    return sample_feature(size, seed, features, feature_probs)
-
-
 
 
 def inventory_colnames(features):
@@ -224,6 +213,54 @@ def write_inventories(out_fn, inventories, features):
     hf_out.close()
     for i in inventories:
         write_inventory(i, out_fn, append=True)
+        
+        
+        
+
+def create_parser():
+    """Return command-line parser."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--version', action='version',
+                        version='%(prog)s ' + __version__)
+    parser.add_argument('--jobs', type=int, default=1,
+                        help='number of parallel jobs; '
+                        'match CPU count if value is less than 1')
+    parser.add_argument('--initial-seed', type=int, default=None,
+                        help='initial random seed for inventories, increased '
+                        'by one for each in a predictable but meaningless '
+                        'order (default: variable)')
+    parser.add_argument('--skipcols', type=int, default=2,
+                        help='number of columns to skip before assuming '
+                        'the rest is features')
+    parser.add_argument('--language-colindex', type=int, default=0,
+                        help='index of column containing language name')
+    parser.add_argument('--seg-colindex', type=int, default=1,
+                        help='index of column containing segment label')
+    parser.add_argument('--props-from', default=None,
+                        help='a separate csv to get the statistics from')
+    parser.add_argument('--matrix', action='store_true')
+    parser.add_argument('--betabin', action='store_true')
+    parser.add_argument('--feature', action='store_true')
+    parser.add_argument('--segment', action='store_true')
+    parser.add_argument('--binary-segment', action='store_true')
+    parser.add_argument('--tmp_directory', default='/tmp',
+                        help='directory to store temporary files')
+    parser.add_argument('--outdir', help='output directory', default='.')
+    parser.add_argument('inventories_locations', help='list of csv files'
+                        'containing independent sets of inventories; '
+                        'each set of inventories will be paired with its own'
+                        'set of random inventories', nargs='+')
+    return parser
+
+
+def parse_args(arguments):
+    """Parse command-line options."""
+    parser = create_parser()
+    args = parser.parse_args(arguments)
+    return args
+
+
+        
 
 if __name__ == "__main__":
     args = parse_args(sys.argv[1:])
@@ -251,7 +288,14 @@ if __name__ == "__main__":
             randints = create_inventories(sizes, sample_fn, args.tmp_directory,
                                           args.initial_seed, args.jobs)
             write_inventories(out_fn, randints, features)
-        if args.binary_segment:
+        elif args.betabin:
+            def sample_fn(size, seed):
+                return sample_matrix_betabin(size, seed, features)
+            out_fn = all_output_fn_prefixes[i] + BETABIN_SUFFIX
+            randints = create_inventories(sizes, sample_fn, args.tmp_directory,
+                                          args.initial_seed, args.jobs)
+            write_inventories(out_fn, randints, features)
+        elif args.binary_segment:
             if props_from:
                 segtable = segment_value_table(props_from[0])
                 segnames = segtable[0].keys()
@@ -273,7 +317,7 @@ if __name__ == "__main__":
             randints = create_inventories(sizes, sample_fn, args.tmp_directory,
                                           args.initial_seed, args.jobs)
             write_inventories(out_fn, randints, features)
-        if args.segment:
+        elif args.segment:
             all_segtables = [segment_value_table(ii[0])
                              for ii in all_inventory_tuples]
             segnames = all_segtables[i][0].keys()
@@ -287,13 +331,15 @@ if __name__ == "__main__":
             randints = create_inventories(sizes, sample_fn, args.tmp_directory,
                                           args.initial_seed, args.jobs)
             write_inventories(out_fn, randints, features)
-        if args.feature:
+        elif args.feature:
             all_feattables = [feature_table(ii[0], features)
                               for ii in all_inventory_tuples]
             featprobs = all_feattables[i].values()
 
             def sample_fn(size, seed):
-                return sample_feature(size, seed, features, featprobs)
+                return sample_feature_generic(size, seed, features,
+                                              MatrixIndepRowsSampler,
+                                              featprobs)
             out_fn = all_output_fn_prefixes[i] + FEATURE_SUFFIX
             randints = create_inventories(sizes, sample_fn, args.tmp_directory,
                                           args.initial_seed, args.jobs)

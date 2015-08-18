@@ -26,6 +26,12 @@ lmresid <- function(x, y) {
   return(resid(m))
 }
 
+lm2resid <- function(x1, x2, y) {
+  m <- lm(y ~ x1*x2)
+  return(resid(m))
+}
+
+
 kld <- function(p_dist, q_dist) {
   p_log_p <- rep(0, length(p_dist))
   p_log_q <- rep(0, length(p_dist))
@@ -140,6 +146,21 @@ y_x_binned <- function(y_meas, x_meas, bins=5, resid_fn=zscore_y) {
   return(result)
 }
 
+y_x1_x2_binned <- function(y_meas, x1_meas, x2_meas, bins=5, resid_fn=lm2resid) {
+  x1_binned <- cut(x1_meas, breaks=bins)
+  x2_binned <- cut(x1_meas, breaks=bins)
+  y_zscores <- ddply(data.frame(y=y_meas, x1=x1_binned, x2=x2_binned,
+                                x1_orig=x1_meas, x2_orig=x2_meas,
+                                original_item=1:length(y_meas)),
+                     .(x1, x2), .fun=function(d)
+                       data.frame(y_zscores=resid_fn(d$x1_orig, d$x2_orig, d$y),
+                                  original_item=d$original_item))
+  y_zscores_ <- y_zscores[order(y_zscores$original_item),]
+  result <- y_zscores_$y_zscores
+  return(result)
+}
+
+
 
 add_cstats <- function(d) {
   result <- d
@@ -215,3 +236,8 @@ compute_fstats_sing <- function(inventories) {
   return(result)
 }
 
+rankz <- function(x) {
+  r <- 2*rank(x) - 1
+  q <- r/(max(r) + 1)
+  return(qnorm(q))
+}
