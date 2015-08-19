@@ -35,23 +35,23 @@ by inventory
 ##To generate specs/ (minimal feature subsets)
 
 - mkdir -p TMP
-- python src/contrastive-symmetry/subset.py --binary --max-frontier-expansion-cost=30000 --jobs=[NJOBS] data/[INVENTORY].csv TMP/s\_[INVENTORY]
+- python src/contrastive-symmetry/subset.py \-\-binary \-\-max-frontier-expansion-cost=30000 \-\-jobs=[NJOBS] data/[INVENTORY].csv TMP/s\_[INVENTORY]
 - bash compile\_stats.sh TMP/s\_[INVENTORY] > specs/[INVENTORY]\_specs.csv
 
 ##To generate \_size files
 
-- Rscript --vanilla minfeat.R data/[INVENTORY].csv stats/[INVENTORY]\_size.csv
+- Rscript \-\-vanilla size.R data/[INVENTORY].csv stats/[INVENTORY]\_size.csv
 
 ##To generate \_minfeat files
 
 - Ensure specs is appropriately populated (see above)
-- Rscript --vanilla minfeat.R specs/[INVENTORY]\_specs.csv stats/[INVENTORY]\_minfeat.csv
+- Rscript \-\-vanilla minfeat.R specs/[INVENTORY]\_specs.csv stats/[INVENTORY]\_minfeat.csv
 
 ##To generate \_tbalance files
 
 - Ensure specs is appropriately populated (see above)
 - mkdir -p TMP
-- python src/contrastive-symmetry/balance.py --jobs=[NJOBS] --max-dim=0 data/[INVENTORY].csv specs/[INVENTORY]\_specs.csv TMP/b\_[INVENTORY]
+- python src/contrastive-symmetry/balance.py \-\-jobs=[NJOBS] \-\-max-dim=0 data/[INVENTORY].csv specs/[INVENTORY]\_specs.csv TMP/b\_[INVENTORY]
 - bash compile\_stats.sh TMP/b\_[INVENTORY] > stats/[INVENTORY]\_tbalance.csv
 - cut -d , -f 1-5 stats/[INVENTORY]\_tbalance.csv | sed -e "1s/,balance/,tbalance/;1s/\_count//g" > tmp\_file; mv tmp\_file stats/[INVENTORY]\_tbalance.csv
 
@@ -59,11 +59,11 @@ by inventory
 
 - Ensure specs is appropriately populated (see above)
 - mkdir -p TMP
-- python src/contrastive-symmetry/pair\_counts.py --jobs=[NJOBS] data/[INVENTORY].csv specs/[INVENTORY\_SPECS].csv TMP/p\_[INVENTORY]
+- python src/contrastive-symmetry/pair\_counts.py \-\-jobs=[NJOBS] data/[INVENTORY].csv specs/[INVENTORY\_SPECS].csv TMP/p\_[INVENTORY]
 - bash compile\_stats.sh TMP/p\_[INVENTORY] > stats/[INVENTORY]\_pair\_counts.csv
 
 ##To generate \_pair\_counts\_med files
 
 - Ensure \_pair\_counts files are generated
-- Rscript --vanilla collapse_pair_counts.R stats/[INVENTORY]_pair_counts.csv  stats/[INVENTORY]_pair_counts_med.csv
+- Rscript \-\-vanilla collapse_pair_counts.R stats/[INVENTORY]_pair_counts.csv  stats/[INVENTORY]_pair_counts_med.csv
 
