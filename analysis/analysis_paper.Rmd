@@ -1,0 +1,583 @@
+---
+title: "Feature economy analysis: Version 2"
+output: html_document
+---
+
+```{r init, include=FALSE, cache=FALSE}
+library(plyr)
+library(ggplot2)
+library(cowplot)
+source("../src/analysis/util.R")
+source("../src/analysis/read.R")
+source("../src/analysis/plot.R")
+source("../src/analysis/stats.R")
+source("../src/analysis/auc.R")
+```
+
+```{r setup, include=FALSE, cache=FALSE}
+source("what_analysis_paper.R")
+```
+
+```{r read-input-raw, include=FALSE, cache=TRUE}
+size_r <- combine_dlist(read_from_filename_table(ISIZE_FILENAME_TABLE))
+minfeat_r <- combine_dlist(read_from_filename_table(MINFEAT_FILENAME_TABLE))
+names(minfeat_r)[2] <- "nfeat"
+tbalance_r <- combine_dlist(read_from_filename_table(TBALANCE_FILENAME_TABLE))
+pcount_r <- combine_dlist(read_from_filename_table(PCOUNT_FILENAME_TABLE))
+#deboer_comparison_lgs <- read.csv(SPECIAL_DEBOER_COMPARISON_FILENAME)
+```
+
+
+```{r process-input, include=FALSE, cache=TRUE}
+stats_by_i <- merge(minfeat_r, size_r)
+stats_by_i$ec <- with(stats_by_i, size/(2^nfeat))
+stats_by_i$eek <- with(stats_by_i, size/nfeat)
+stats_by_i$ec_r <- with(stats_by_i, rank(ec))
+stats_by_i$eek_r <- with(stats_by_i, rank(eek))
+
+stats_by_fi <- merge(merge(stats_by_i, tbalance_r), pcount_r)
+stats_by_fi$fb <- with(stats_by_fi, 1.-tbalance/(size-1))
+stats_by_fi$mp <- with(stats_by_fi, pair_count/pmin(minus, plus))
+
+stats_by_i <- merge(stats_by_i, ddply(stats_by_fi, .(language, segment_type,
+                                                      inventory_type),
+                                      summarize, fb=median(fb),
+                                      mp=median(mp)))
+
+stats_by_i$ec_rz <- with(stats_by_i, rankz(ec))
+stats_by_i$fb_rz <- with(stats_by_i, rankz(fb))
+stats_by_i$mp_rz <- with(stats_by_i, rankz(mp))
+stats_by_i$fb_rz_rmp <- with(stats_by_i, y_x_binned(fb_rz, mp, bins=9, resid_fn=lmresid))
+stats_by_i$mp_rz_rfb <- with(stats_by_i, y_x_binned(mp_rz, fb, bins=9, resid_fn=lmresid))
+
+stats_by_i$ec_rz_rfb <- with(stats_by_i, y_x_binned(ec_rz, fb_rz_rmp, bins=9, resid_fn=lmresid))
+stats_by_i$ec_rz_rmp <- with(stats_by_i, y_x_binned(ec_rz, mp_rz_rfb, bins=9, resid_fn=lmresid))
+stats_by_i$ec_rz_rmpfb <- with(stats_by_i, y_x1_x2_binned(ec_rz, mp, fb_rz_rmp, bins=3, resid_fn=lm2resid))
+stats_by_i$ec_rz_rfbmp <- with(stats_by_i, y_x1_x2_binned(ec_rz, fb, mp_rz_rfb, bins=3, resid_fn=lm2resid))
+
+#stats_by_i$mp_rz <- with(stats_by_i, rankz(mp))
+
+#stats_by_i$mp_rz_rfb <- with(stats_by_i, y_x_binned(mp_rz, fb, bins=9, resid_fn=lmresid))
+
+#stats_by_i$ec_rmp <- with(stats_by_i, y_x_binned(ec, mp, bins=9, resid_fn=lmresid))
+#stats_by_i$ec_rfb <- with(stats_by_i, y_x_binned(ec, fb, bins=9, resid_fn=lmresid))
+#vowel_stats_by_i <- stats_by_i[stats_by_i$segment_type=="Vowel" &
+#                               stats_by_i$inventory_type=="Natural",]
+#debcom_stats_by_i <- ddply(deboer_comparison_lgs, .(sample_id),
+#                           function(d) merge(d, vowel_stats_by_i))
+#debvow_stats_by_i <- stats_by_i[stats_by_i$segment_type=="de Boer Vowel",]
+#
+#debcom_stats_by_i$segment_type <- "de Boer Vowel"
+#debvow_stats_by_i$sample_id <- NA
+#deb_stats_by_i <- rbind(debcom_stats_by_i, debvow_stats_by_i)
+#
+#stats_by_i <- stats_by_i[stats_by_i$segment_type!="de Boer Vowel",]
+#stats_by_fi <- stats_by_fi[stats_by_fi$segment_type!="de Boer Vowel",]
+#stats_by_i$segment_type <- factor(stats_by_i$segment_type)
+#stats_by_i$inventory_type <- factor(stats_by_i$inventory_type)
+#stats_by_fi$segment_type <- factor(stats_by_fi$segment_type)
+#stats_by_fi$inventory_type <- factor(stats_by_fi$inventory_type)
+```
+
+#Introduction
+
+```{r paper-cube-ec-inc}
+par(mfrow=c(1,2))
+par(family="Times New Roman")
+ex <- data.frame(x=c(0,0,1,1),
+                 y=c(0,0,0,1),
+                 z=c(0,1,0,0))
+with(ex, cube(x,y,z,
+              corner_text_outside=c("y", "i", "ø", "", "", "", "o"),
+              corner_text_cex=3, point_cex=3.0,two=F,
+              pch=19))
+title(main="Hypothetical inventory", cex.main=2.5)
+ex <- data.frame(x=c(0,0,1,1),
+                 y=c(0,0,0,0),
+                 z=c(0,1,0,1))
+with(ex, cube(x,y,z,
+              corner_text_outside=c("y", "i", "ø", "e"),
+              corner_text_cex=3,point_cex=3.0,two=F, square=T,
+              pch=19))
+title(main="More economical", cex.main=2.5)
+```
+
+#Study 1 Intro
+
+```{r paper-cube-ec-mp-fb}
+par(mfrow=c(1,3))
+par(family="Times New Roman")
+ex <- data.frame(x=c(0,1/4,1/4,1/4,3/4,3/4,3/4),
+                 y=c(0,1/4,1/4,3/4,1/4,3/4,1/4),
+                 z=c(1,1/4,3/4,1/4,3/4,3/4,1/4))
+with(ex, cube(x,y,z,
+              corner_text_outside=c("", "ɪ", "", ""),
+              corner_text_inside=c("y", "i", "ø", "e", "u", "", "", "ʌ"),
+              corner_text_cex=3, point_cex=3.0,
+              pch=19))
+title(main="Hypothetical inventory", cex.main=2.5)
+ex <- data.frame(x=c(0,1/4,1/4,1/4,3/4,3/4,3/4),
+                 y=c(0,1/4,1/4,3/4,1/4,3/4,3/4),
+                 z=c(1,1/4,3/4,1/4,3/4,3/4,1/4))
+with(ex, cube(x,y,z,
+              corner_text_outside=c("", "ɪ", "", ""),
+              corner_text_inside=c("y", "i", "", "e", "u", "", "o", "ʌ"),
+              corner_text_cex=3,point_cex=3.0,
+              pch=19))
+title(main="More balanced", cex.main=2.5)
+ex <- data.frame(x=c(0,1/4,1/4,3/4,3/4,3/4,3/4),
+                 y=c(0,1/4,1/4,1/4,1/4,3/4,3/4),
+                 z=c(1,1/4,3/4,1/4,3/4,3/4,1/4))
+with(ex, cube(x,y,z,
+              corner_text_outside=c("", "ɪ", "", ""),
+              corner_text_inside=c("y", "i", "ø", "e", "", "", "o", "ʌ"),
+              corner_text_cex=3,point_cex=3.0,
+              pch=19))
+title(main="Better paired", cex.main=2.5)
+```
+
+
+#Study 1 Results
+
+##Economy
+
+```{r ec-paper,echo=FALSE, fig.width=30, fig.height=15}
+d <- one_random(stats_by_i, "Random Segment")
+d$segment_type <- factor(d$segment_type, levels=c("Whole", "Consonant",
+                                                  "Stop", "Vowel"))
+d$inventory_type <- factor(d$inventory_type, levels=c("Random", "Natural"))
+d_summ <- ddply(d, .(segment_type, inventory_type), summarize,
+                ec_mean=mean(ec))
+p <- ggplot(d, aes_string(x="ec")) +
+      geom_vline(data=d_summ, aes(xintercept=ec_mean, colour=inventory_type),
+                 lwd=1.5, alpha=0.8) +
+      geom_vline(data=d_summ, aes(xintercept=ec_mean, group=inventory_type),
+                 lwd=0.5, alpha=1.0) 
+p1 <- plot_prevalence(d, "ec", "inventory_type",
+                     "Economy (Ec)", "Inventory Type",
+                     point_size=2.0, line_width=0.8,
+                     change_font=F, initial_plot=p, bins=31) +
+      facet_wrap(~ segment_type)
+print(p1)
+```
+
+```{r ec-rocs,echo=TRUE}
+d <- one_random(stats, "Random Segment")
+d$segment_type <- factor(d$segment_type, levels=c("Whole", "Consonant",
+                                                  "Stop", "Vowel"))
+d$inventory_type <- factor(d$inventory_type, levels=c("Random", "Natural"))
+rocs <- ddply(d, .(segment_type),
+              function(dd) pred_stats(dd$size_by_2nfeat, dd$inventory_type))
+p <- ggplot(rocs, aes(x=fpr, y=tpr)) +
+       geom_abline(slope=1.0, intercept=0.0, linetype="dashed", size=1.2) +
+       geom_line(aes(colour=segment_type), size=1.2) +
+       theme(legend.position="bottom") +
+       guides(colour=guide_legend( title="System type")) + ylim(c(0,1)) + 
+       xlab("False positive rate") + ylab("True positive rate") +
+       scale_colour_manual(values=segment_types_palette)
+print(p)
+```
+
+```{r ec-aucs,echo=TRUE}
+d <- one_random(stats_by_i, "Random Segment")
+ddply(d, .(segment_type),
+      .fun=partial(auc_by_inventory_type, measure="ec"))
+```
+
+```{r ec-tt,echo=TRUE}
+d <- one_random(stats_by_i, "Random Segment")
+
+ddply(d, .(segment_type),
+      .fun=partial(auc_by_inventory_type, measure="ec"))
+```
+
+
+```{r ec-means,echo=TRUE}
+d <- one_random(stats_by_i, "Random Segment")
+ddply(d, .(segment_type, inventory_type), summarize, mean(ec))
+```
+
+##Balance
+
+```{r fb-paper,echo=FALSE, fig.width=30, fig.height=15}
+d <- one_random(stats_by_i, "Random Segment")
+d$segment_type <- factor(d$segment_type, levels=c("Whole", "Consonant",
+                                                  "Stop", "Vowel"))
+d$inventory_type <- factor(d$inventory_type, levels=c("Random", "Natural"))
+d_summ <- ddply(d, .(segment_type, inventory_type), summarize,
+                fb_mean=mean(fb))
+p <- ggplot(d, aes_string(x="fb")) +
+      geom_vline(data=d_summ, aes(xintercept=fb_mean, colour=inventory_type),
+                 lwd=1.5, alpha=0.8) +
+      geom_vline(data=d_summ, aes(xintercept=fb_mean, group=inventory_type),
+                 lwd=0.5, alpha=1.0) 
+p1 <- plot_prevalence(d, "fb", "inventory_type",
+                     "Balance (Bal)", "Inventory Type",
+                     point_size=2.0, line_width=0.8,
+                     change_font=F, initial_plot=p, bins=31) +
+      facet_wrap(~ segment_type)
+print(p1)
+```
+
+```{r fb-aucs,echo=TRUE}
+d <- one_random(stats_by_i, "Random Segment")
+ddply(d, .(segment_type),
+      .fun=partial(auc_by_inventory_type, measure="fb"))
+```
+
+
+```{r fb-means,echo=TRUE}
+d <- one_random(stats_by_i, "Random Segment")
+ddply(d, .(segment_type, inventory_type), summarize, mean(fb))
+```
+
+##Density
+
+```{r mp-paper,echo=FALSE, fig.width=30, fig.height=15}
+d <- one_random(stats_by_i, "Random Segment")
+d$segment_type <- factor(d$segment_type, levels=c("Whole", "Consonant",
+                                                  "Stop", "Vowel"))
+d$inventory_type <- factor(d$inventory_type, levels=c("Random", "Natural"))
+d_summ <- ddply(d, .(segment_type, inventory_type), summarize,
+                mp_mean=mean(mp))
+p <- ggplot(d, aes_string(x="mp")) +
+      geom_vline(data=d_summ, aes(xintercept=mp_mean, colour=inventory_type),
+                 lwd=1.5, alpha=0.8) +
+      geom_vline(data=d_summ, aes(xintercept=mp_mean, group=inventory_type),
+                 lwd=0.5, alpha=1.0) 
+p1 <- plot_prevalence(d, "mp", "inventory_type",
+                     "Density (Mp)", "Inventory Type",
+                     point_size=2.0, line_width=0.8,
+                     change_font=F, initial_plot=p, bins=31) +
+      facet_wrap(~ segment_type)
+print(p1)
+```
+
+```{r mp-aucs,echo=TRUE}
+d <- one_random(stats_by_i, "Random Segment")
+ddply(d, .(segment_type),
+      .fun=partial(auc_by_inventory_type, measure="mp"))
+```
+
+
+```{r mp-means,echo=TRUE}
+d <- one_random(stats_by_i, "Random Segment")
+ddply(d, .(segment_type, inventory_type), summarize, mean(mp))
+```
+
+##Model comparison
+
+```{r ec-by-fb-mp,echo=TRUE}
+p_fb <- ggplot(stats_by_i, aes(x=fb, y=ec)) + geom_point() + xlab("Bal") + ylab("Ec")
+p_mp <- ggplot(stats_by_i, aes(x=mp, y=ec)) + geom_point() + xlab("Mp") + ylab("Ec")
+p_fb_mp <- ggplot(stats_by_i, aes(x=mp, y=fb)) + geom_point() + xlab("Mp") + ylab("Bal")
+plot_grid(p_fb, p_mp, p_fb_mp, labels=c("A", "B", "C"), nrow=1)
+```
+
+```{r ecrz-aucs,echo=TRUE}
+d <- one_random(stats_by_i, "Random Segment")
+ddply(d, .(segment_type),
+      .fun=partial(auc_by_inventory_type, measure="ec_rz"))
+```
+
+```{r ecrmp-aucs,echo=TRUE}
+d <- one_random(stats_by_i, "Random Segment")
+ddply(d, .(segment_type),
+      .fun=partial(auc_by_inventory_type, measure="ec_rz_rmp"))
+```
+
+```{r ecrfb-aucs,echo=TRUE}
+d <- one_random(stats_by_i, "Random Segment")
+ddply(d, .(segment_type),
+      .fun=partial(auc_by_inventory_type, measure="ec_rz_rfb"))
+```
+
+```{r ecrmpfb-aucs,echo=TRUE}
+d <- one_random(stats_by_i, "Random Segment")
+ddply(d, .(segment_type),
+      .fun=partial(auc_by_inventory_type, measure="ec_rz_rmpfb"))
+```
+
+
+#Study 2
+
+##Economy
+
+```{r ec-rcomp,echo=FALSE, fig.width=30, fig.height=15}
+d <- stats_by_i
+d$segment_type <- factor(d$segment_type, levels=c("Whole", "Consonant",
+                                                  "Stop", "Vowel"))
+d$inventory_type <- factor(d$inventory_type, levels=c("Natural",
+                                                      "Random Segment",
+                                                      "Random Feature",
+                                                      "Random Beta-binomial",
+                                                      "Random Matrix"))
+levels(d$inventory_type)[2] <- "Random (Study 1)"
+p <- plot_means(d, "ec", "inventory_type", "Economy (Ec)", 
+                "Inventory Type", palette = random_types_palette,
+                change_font=F)
+p <- p + facet_grid(~ segment_type) +
+  theme(axis.text.x=element_blank()) +
+  coord_cartesian(ylim=c(0, 1.0)) 
+print(p)
+```
+
+
+```{r fec-aucs,echo=TRUE}
+d <- one_random(stats_by_i, "Random Feature")
+ddply(d, .(segment_type),
+      .fun=partial(auc_by_inventory_type, measure="ec"))
+```
+
+```{r mec-aucs,echo=TRUE}
+d <- one_random(stats_by_i, "Random Matrix")
+ddply(d, .(segment_type),
+      .fun=partial(auc_by_inventory_type, measure="ec"))
+```
+
+```{r fec-means,echo=TRUE}
+d <- one_random(stats_by_i, "Random Feature")
+ddply(d, .(segment_type, inventory_type), summarize, mean(ec))
+```
+
+```{r mec-means,echo=TRUE}
+d <- one_random(stats_by_i, "Random Matrix")
+ddply(d, .(segment_type, inventory_type), summarize, mean(ec))
+```
+
+##Balance
+
+```{r fb-rcomp,echo=FALSE, fig.width=30, fig.height=15}
+d <- stats_by_i
+d$segment_type <- factor(d$segment_type, levels=c("Whole", "Consonant",
+                                                  "Stop", "Vowel"))
+d$inventory_type <- factor(d$inventory_type, levels=c("Natural",
+                                                      "Random Segment",
+                                                      "Random Feature",
+                                                      "Random Beta-binomial",
+                                                      "Random Matrix"))
+levels(d$inventory_type)[2] <- "Random (Study 1)"
+p <- plot_means(d, "fb", "inventory_type", "Balance (Bal)", 
+                "Inventory Type", palette = random_types_palette,
+                change_font=F)
+p <- p + facet_grid(~ segment_type) +
+  theme(axis.text.x=element_blank()) +
+  coord_cartesian(ylim=c(0, 1.0)) 
+print(p)
+```
+
+
+```{r ffb-aucs,echo=TRUE}
+d <- one_random(stats_by_i, "Random Feature")
+ddply(d, .(segment_type),
+      .fun=partial(auc_by_inventory_type, measure="fb"))
+```
+
+```{r mfb-aucs,echo=TRUE}
+d <- one_random(stats_by_i, "Random Matrix")
+ddply(d, .(segment_type),
+      .fun=partial(auc_by_inventory_type, measure="fb"))
+```
+
+
+```{r ffb-means,echo=TRUE}
+d <- one_random(stats_by_i, "Random Feature")
+ddply(d, .(segment_type, inventory_type), summarize, mean(fb))
+```
+
+
+```{r mfb-means,echo=TRUE}
+d <- one_random(stats_by_i, "Random Matrix")
+ddply(d, .(segment_type, inventory_type), summarize, mean(fb))
+```
+
+
+##Density
+
+```{r mp-rcomp,echo=FALSE, fig.width=30, fig.height=15}
+d <- stats_by_i
+d$segment_type <- factor(d$segment_type, levels=c("Whole", "Consonant",
+                                                  "Stop", "Vowel"))
+d$inventory_type <- factor(d$inventory_type, levels=c("Natural",
+                                                      "Random Segment",
+                                                      "Random Feature",
+                                                      "Random Beta-binomial",
+                                                      "Random Matrix"))
+levels(d$inventory_type)[2] <- "Random (Study 1)"
+p <- plot_means(d, "mp", "inventory_type", "Density (Mp)", 
+                "Inventory Type", palette = random_types_palette,
+                change_font=F)
+p <- p + facet_grid(~ segment_type) +
+  theme(axis.text.x=element_blank()) +
+  coord_cartesian(ylim=c(0, 1.0)) 
+print(p)
+```
+
+
+```{r fmp-aucs,echo=TRUE}
+d <- one_random(stats_by_i, "Random Feature")
+ddply(d, .(segment_type),
+      .fun=partial(auc_by_inventory_type, measure="mp"))
+```
+
+
+```{r mmp-aucs,echo=TRUE}
+d <- one_random(stats_by_i, "Random Matrix")
+ddply(d, .(segment_type),
+      .fun=partial(auc_by_inventory_type, measure="mp"))
+```
+
+```{r fmp-means,echo=TRUE}
+d <- one_random(stats_by_i, "Random Feature")
+ddply(d, .(segment_type, inventory_type), summarize, mean(mp))
+```
+
+
+```{r mmp-means,echo=TRUE}
+d <- one_random(stats_by_i, "Random Matrix")
+ddply(d, .(segment_type, inventory_type), summarize, mean(mp))
+```
+
+
+<!---
+
+#Comparison with MM deBoer vowels
+
+##Economy
+
+```{r ec-db-aucs,echo=TRUE}
+auc_all <- ddply(debcom_stats_by_i, .(sample_id),
+                 function(d) {
+                   db <- rbind(d, debvow_stats_by_i)
+                   s <- pred_stats(db[["ec"]], factor(db$inventory_type,
+                                               levels=c("Model", "Natural")))
+                   return(auc(s$tpr,s$fpr))
+                 })
+mean(auc_all$V1)
+```
+
+```{r ec-db-means,echo=TRUE}
+ddply(deb_stats_by_i, .(inventory_type), summarize, mean(ec))
+```
+
+##Balance
+
+```{r fb-db-aucs,echo=TRUE}
+auc_all <- ddply(debcom_stats_by_i, .(sample_id),
+                 function(d) {
+                   db <- rbind(d, debvow_stats_by_i)
+                   s <- pred_stats(db[["fb"]], factor(db$inventory_type,
+                                               levels=c("Model", "Natural")))
+                   return(auc(s$tpr,s$fpr))
+                 })
+mean(auc_all$V1)
+```
+
+```{r fb-db-means,echo=TRUE}
+ddply(deb_stats_by_i, .(inventory_type), summarize, mean(fb))
+```
+
+##Density
+
+```{r mp-db-aucs,echo=TRUE}
+auc_all <- ddply(debcom_stats_by_i, .(sample_id),
+                 function(d) {
+                   db <- rbind(d, debvow_stats_by_i)
+                   s <- pred_stats(db[["mp"]], factor(db$inventory_type,
+                                               levels=c("Model", "Natural")))
+                   return(auc(s$tpr,s$fpr))
+                 })
+mean(auc_all$V1)
+```
+
+```{r mp-db-means,echo=TRUE}
+ddply(deb_stats_by_i, .(inventory_type), summarize, mean(mp))
+```
+
+
+#Detritus
+
+Top-level balance measure
+-----------
+
+
+```{r tb_economy-means-bysize,echo=FALSE, fig.width=30, fig.height=15}
+d <- one_random(stats, "Random Segment")
+d$segment_type <- factor(d$segment_type, levels=c("Whole", "Consonant",
+                                                  "Stop", "Vowel"))
+p <- plot_means(d, "ct_by_ec", "inventory_type",
+                "Balance z-score by economy level", "Inventory Type",
+                x_var="size", x_var_label="Number of segments in inventory") +
+     facet_grid(~ segment_type) +
+     theme(axis.title.x=element_blank(), axis.text.x=element_blank())
+print(p)
+```
+
+
+Minimal pairs measure
+-----------
+
+
+```{r mp_economy-means-bysize,echo=FALSE, fig.width=30, fig.height=15}
+d <- one_random(stats_f, "Random Segment")
+d$segment_type <- factor(d$segment_type, levels=c("Whole", "Consonant",
+                                                  "Stop", "Vowel"))
+p <- plot_means(d, "mp_by_ec", "inventory_type",
+                "Balance z-score by economy level", "Inventory Type",
+                x_var="size", x_var_label="Number of segments in inventory") +
+     facet_grid(segment_type ~ .) +
+     theme(axis.title.x=element_blank(), axis.text.x=element_blank())
+print(p)
+```
+
+Feature bias
+------------
+
+```{r feature-avg-means-random,echo=FALSE, fig.width=30, fig.height=15}
+d <- summary_fstats_sing[summary_fstats_sing$inventory_type %in%
+                           RANDOM_TYPES &
+                         summary_fstats_sing$segment_type == "Consonant",]
+p <- plot_means(d, "absmean", "inventory_type",
+                     "Feature imbalance",
+                     "Inventory Type", x_var="nseg",
+                     x_var_label="Number of segments in inventory",
+                     palette = random_types_palette) +
+  coord_cartesian(ylim=c(0, 0.65))
+print(p)
+```
+
+```{r feature-avg-means,echo=FALSE, fig.width=30, fig.height=15}
+d <- summary_fstats_sing[summary_fstats_sing$segment_type == "Consonant",]
+p <- plot_means(d, "absmean", "inventory_type",
+                     "Feature imbalance",
+                     "Inventory Type", x_var="nseg",
+                     x_var_label="Number of segments in inventory",
+                     palette = random_types_palette) +
+  coord_cartesian(ylim=c(0, 0.65))
+print(p)
+```
+
+```{r feature-avg-means-stops,echo=FALSE, fig.width=30, fig.height=15}
+d <- summary_fstats_sing[summary_fstats_sing$segment_type == "Stop",]
+p <- plot_means(d, "absmean", "inventory_type",
+                     "Feature imbalance",
+                     "Inventory Type", x_var="nseg",
+                     x_var_label="Number of segments in inventory",
+                     palette = random_types_palette) +
+  coord_cartesian(ylim=c(0, 0.65))
+print(p)
+```
+
+```{r feature-avg-means-vowels,echo=FALSE, fig.width=30, fig.height=15}
+d <- summary_fstats_sing[summary_fstats_sing$segment_type == "Vowel",]
+p <- plot_means(d, "absmean", "inventory_type",
+                     "Feature imbalance",
+                     "Inventory Type", x_var="nseg",
+                     x_var_label="Number of segments in inventory",
+                     palette = random_types_palette) +
+  coord_cartesian(ylim=c(0, 0.65))
+print(p)
+```
+
+-->
+
