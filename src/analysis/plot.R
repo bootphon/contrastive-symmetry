@@ -4,12 +4,12 @@ library(scatterplot3d)
 
 # palette from http://jfly.iam.u-tokyo.ac.jp/color/
 default_colour_palette <- c(Random="#E69F00", Natural="#56B4E9") 
-random_types_palette <- c("#E69F00", "#56B4E9", "#CC79A7",
+random_types_palette <- c("#E69F00", "#56B4E9", "#CC79A7", "#0072B2",
                           "#D55E00")
 names(random_types_palette) <- c("Random (Study 1)", "Natural",
-                                 "Random Feature", "Random Matrix")
+                                 "Random Feature", "Random Beta-binomial", "Random Matrix")
 default_text_colour <- "#535353"
-segment_types_palette <- c("#009E73", "#56B4E9", "#0072B2",
+segment_types_palette <- c("#009E73", "#56B4E9", "#0072B2", 
                           "#D55E00")
 names(segment_types_palette) <- c("Stop", "Whole", "Vowel", "Consonant")
 
