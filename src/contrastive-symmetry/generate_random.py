@@ -33,10 +33,11 @@ class MatrixIndepRowsSampler(object):
         return rb(self.feature_probs[i])
 
 class MatrixBetaBinomSampler(object):
-    def __init__(self, feature_alphas):
-        self.feature_alphas = feature_alphas
-        self.ca = [0]*len(feature_alphas) 
-        self.cb = [0]*len(feature_alphas) 
+    def __init__(self, param_dict):
+        self.feature_alphas = param_dict["alphas"]
+        self.ca = [0]*len(self.feature_alphas) 
+        self.cb = [0]*len(self.feature_alphas) 
+        self.count_weight = param_dict["count_weight"]
     
     def r(self, i):
         alpha = self.feature_alphas[i]
@@ -44,9 +45,9 @@ class MatrixBetaBinomSampler(object):
         p = np.random.beta(alpha + self.ca[i], beta + self.cb[i])
         result = rb(p)
         if result == 1:
-            self.ca[i] += 1
+            self.ca[i] += self.count_weight
         else:
-            self.cb[i] += 1
+            self.cb[i] += self.count_weight
         return result
 
 
@@ -131,11 +132,12 @@ def sample_matrix(size, seed, features):
                                   feature_probs)
 
 
-def sample_matrix_betabin(size, seed, features):
+def sample_matrix_betabin(size, seed, features, count_weight):
     nfeat = len(features)
     feature_alphas = [1.] * nfeat
     return sample_feature_generic(size, seed, features, MatrixBetaBinomSampler,
-                                  feature_alphas)
+                                  {"alphas": feature_alphas,
+                                   "count_weight": count_weight})
 
 
 def sample_segments(size, seed, segment_probs, segments, segment_names):
@@ -238,6 +240,9 @@ def create_parser():
                         help='index of column containing segment label')
     parser.add_argument('--props-from', default=None,
                         help='a separate csv to get the statistics from')
+    parser.add_argument('--betabin-count-weight', type=float, default=1.0,
+                        help='factor to weight each additional count by '
+                        'in the beta-binomial model')
     parser.add_argument('--matrix', action='store_true')
     parser.add_argument('--betabin', action='store_true')
     parser.add_argument('--feature', action='store_true')
@@ -258,8 +263,6 @@ def parse_args(arguments):
     parser = create_parser()
     args = parser.parse_args(arguments)
     return args
-
-
         
 
 if __name__ == "__main__":
@@ -290,7 +293,8 @@ if __name__ == "__main__":
             write_inventories(out_fn, randints, features)
         elif args.betabin:
             def sample_fn(size, seed):
-                return sample_matrix_betabin(size, seed, features)
+                return sample_matrix_betabin(size, seed, features,
+                                             args.betabin_count_weight)
             out_fn = all_output_fn_prefixes[i] + BETABIN_SUFFIX
             randints = create_inventories(sizes, sample_fn, args.tmp_directory,
                                           args.initial_seed, args.jobs)
