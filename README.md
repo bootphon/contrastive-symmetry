@@ -20,6 +20,8 @@ median over all specifications
 * *\*\_tbalance* number of plus, minus, and absolute value of difference by feature
 by inventory
 
+**scripts/** for generating statistics
+
 **data/** inventory tables
 
 **specs/** pre-computed minimal feature subsets by inventory
@@ -32,38 +34,28 @@ by inventory
 
 **FIXME DOCS**
 
-##To generate specs/ (minimal feature subsets)
+##To generate specs and all stats 
 
-- mkdir -p TMP
-- python src/contrastive-symmetry/subset.py \-\-binary \-\-max-frontier-expansion-cost=30000 \-\-jobs=[NJOBS] data/[INVENTORY].csv TMP/s\_[INVENTORY]
-- bash compile\_stats.sh TMP/s\_[INVENTORY] > specs/[INVENTORY]\_specs.csv
+bash scripts/do\_all\_stats.sh
 
-##To generate \_size files
+##To just generate specs/ (minimal feature subsets)
 
-- Rscript \-\-vanilla size.R data/[INVENTORY].csv stats/[INVENTORY]\_size.csv
+bash scripts/specs.sh [INVENTORY]
 
-##To generate \_minfeat files
+(where data/[INVENTORY].csv is a file containing the inventories to be analyzed)
 
-- Ensure specs is appropriately populated (see above)
-- Rscript \-\-vanilla minfeat.R specs/[INVENTORY]\_specs.csv stats/[INVENTORY]\_minfeat.csv
+##To just generate \_size files
 
-##To generate \_tbalance files
+bash scripts/size.sh [INVENTORY]
 
-- Ensure specs is appropriately populated (see above)
-- mkdir -p TMP
-- python src/contrastive-symmetry/balance.py \-\-jobs=[NJOBS] \-\-max-dim=0 data/[INVENTORY].csv specs/[INVENTORY]\_specs.csv TMP/b\_[INVENTORY]
-- bash compile\_stats.sh TMP/b\_[INVENTORY] > stats/[INVENTORY]\_tbalance.csv
-- cut -d , -f 1-5 stats/[INVENTORY]\_tbalance.csv | sed -e "1s/,balance/,tbalance/;1s/\_count//g" > tmp\_file; mv tmp\_file stats/[INVENTORY]\_tbalance.csv
+##To just generate \_minfeat files
 
-##To generate \_pair\_counts files
+bash scripts/minfeat.sh [INVENTORY]
 
-- Ensure specs is appropriately populated (see above)
-- mkdir -p TMP
-- python src/contrastive-symmetry/pair\_counts.py \-\-jobs=[NJOBS] data/[INVENTORY].csv specs/[INVENTORY\_SPECS].csv TMP/p\_[INVENTORY]
-- bash compile\_stats.sh TMP/p\_[INVENTORY] > stats/[INVENTORY]\_pair\_counts.csv
+##To just generate \_tbalance files
 
-##To generate \_pair\_counts\_med files
+bash scripts/tbalance.sh [INVENTORY]
 
-- Ensure \_pair\_counts files are generated
-- Rscript \-\-vanilla collapse_pair_counts.R stats/[INVENTORY]_pair_counts.csv  stats/[INVENTORY]_pair_counts_med.csv
+##To just generate \_pair\_counts and \_pair\_counts\_med files
 
+bash scripts/pair_counts.sh [INVENTORY]
