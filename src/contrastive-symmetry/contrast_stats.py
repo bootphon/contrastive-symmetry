@@ -1,5 +1,5 @@
 import argparse
-import random
+import brandom
 import sys
 import os
 
@@ -120,17 +120,17 @@ def cstats(inventory, permutation, features):
 
 def generate_permutations(n, seed, features):
     permutations = []
-    random.seed(seed)
+    brandom.seed(seed)
     nfeats = len(features)
     for i in range(n):
         index_of_perm_in_std = range(nfeats)
-        random.shuffle(index_of_perm_in_std)
+        brandom.shuffle(index_of_perm_in_std)
         index_of_std_in_perm = np.argsort(index_of_perm_in_std)
         permutation = {"Order_Name": "O" + str(i + 1),
                        "Index_of_Perm_in_Std": index_of_perm_in_std,
                        "Index_of_Std_in_Perm": index_of_std_in_perm}
         permutations.append(permutation)
-    random.seed()
+    brandom.seed()
     return permutations
 
 
@@ -186,9 +186,9 @@ def create_parser():
     parser.add_argument('--seg-colindex', type=int, default=1,
                         help='index of column containing segment label')
     parser.add_argument('--nperms', type=int, default=100,
-                        help='number of random feature hierarchy permutations')
+                        help='number of brandom feature hierarchy permutations')
     parser.add_argument('--permutation-seed', type=int, default=None,
-                        help='fixed random seed for permutations (default: '
+                        help='fixed brandom seed for permutations (default: '
                         'variable)')
     parser.add_argument('--tmp_directory', default='/tmp',
                         help='directory to store temporary files')

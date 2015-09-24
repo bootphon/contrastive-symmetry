@@ -9,7 +9,7 @@ from inventory_util import stem_fn, is_full_rank
 from inventory_io import which_binary
 from joblib import Parallel, delayed
 from joblib.memory import Memory
-
+from brandom import rb
 
 __version__ = '0.0.1'
 
@@ -18,13 +18,6 @@ BETABIN_SUFFIX = "_random_betabin.csv"
 SEGMENT_SUFFIX = "_random_segment.csv"
 FEATURE_SUFFIX = "_random_feature.csv"
 
-def rb(p):
-    if np.random.random() <= p:
-        return 1
-    else:
-        return -1
-
-
 class MatrixIndepRowsSampler(object):
     def __init__(self, feature_probs):
         self.feature_probs = feature_probs
@@ -32,7 +25,7 @@ class MatrixIndepRowsSampler(object):
     def r(self, i):
         return rb(self.feature_probs[i])
 
-class MatrixBetaBinomSampler(object):
+class MatrixBetaBinomOldSampler(object):
     def __init__(self, param_dict):
         self.feature_alphas = param_dict["alphas"]
         self.ca = [0]*len(self.feature_alphas) 
@@ -49,7 +42,22 @@ class MatrixBetaBinomSampler(object):
         else:
             self.cb[i] += self.count_weight
         return result
-
+    
+class MatrixBetaBinomSampler(object):
+    def __init__(self, param_dict):
+        self.feature_alphas = param_dict["alphas"][:]
+        self.feature_betas = param_dict["betas"][:]
+        self.count_weight = param_dict["count_weight"]
+    
+    def r(self, i):
+        alpha = self.feature_alphas[i]
+        beta = self.feature_beta[i]
+        result = rb(alpha/(alpha+beta))
+        if result == 1:
+            self.feature_alphas[i] += self.count_weight
+        else:
+            self.feature_betas[i] += self.count_weight
+        return result
 
 def int_to_features(i, nfeat):
     np_rep = np.binary_repr(i, width=nfeat)
@@ -122,7 +130,49 @@ def sample_feature_generic(size, seed, features, feature_sampler_class,
     np.random.seed()
     return seg_names, seg_values
 
-    
+
+def sample_feature_generic_FIXED_DISCARD(size, seed, features,
+                                         feature_sampler_class,
+                                         initial_params):
+    nfeat = len(features)
+    seg_values = np.zeros((size, nfeat), dtype=int)
+    seg_names = [''] * size
+    feature_sampler = feature_sampler_class(initial_params)
+    np.random.seed(seed)
+    for i_seg in range(size):
+        seg_values[i_seg, 0] = feature_sampler.r(0)
+        value_ok = False
+        while not value_ok:
+            value_ok = True
+            for i_feat in range(1, nfeat):
+                previous = seg_values[0:i_seg, :]
+                current = seg_values[i_seg,:]
+                poss_next = remaining_ways_to_fill_in_zeroes_of_row(previous,
+                                                                    current)
+                new_val = feature_sampler.r(i_feat)
+                if len(poss_next) == 1 and new_val != poss_next[0]:
+                    value_ok = False
+                    break
+        seg_names[i_seg] = 's' + str(features_to_int(seg_values[i_seg, :]))
+    np.random.seed()
+    return seg_names, seg_values
+
+ 
+def sample_segment_generic_FIXED_DIRECT(size, seed, features,
+                                        feature_sampler_class,
+                                        initial_params):
+    nfeat = len(features)
+    seg_values = np.zeros((size, nfeat), dtype=int)
+    seg_names = [''] * size
+    feature_sampler = feature_sampler_class(initial_params)
+    np.random.seed(seed)
+    for i_seg in range(size):
+        for i_feat in range(nfeat):
+            seg_values[i_seg, i_feat] = feature_sampler.r(i_feat)
+        feature_sampler.remove(seg_values[i_seg, :])
+        seg_names[i_seg] = 's' + str(features_to_int(seg_values[i_seg, :]))
+    np.random.seed()
+    return seg_names, seg_values
 
 
 def sample_matrix(size, seed, features):
@@ -140,13 +190,20 @@ def sample_matrix_betabin(size, seed, features, count_weight):
                                    "count_weight": count_weight})
 
 
-def sample_segments(size, seed, segment_probs, segments, segment_names):
+def sample_segments_old(size, seed, segment_probs, segments, segment_names):
     seg_indices = range(len(segment_probs))
     np.random.seed(seed)
     s = np.random.choice(seg_indices, size, replace=False, p=segment_probs)
     np.random.seed()
     return [segment_names[i] for i in s], [segments[i] for i in s]
 
+
+def sample_segments(size, seed, segment_probs, segments, segment_names):
+    return sample_feature_generic(size, seed, features,
+                                  MatrixRealSegmentSampler,
+                                  {"segment_matrix": segments,
+                                   "segment_names": segment_names})
+    
 
 def sample_binary_segments(size, seed, segment_probs, segments, segment_names):
     seg_indices = range(len(segment_probs))
@@ -162,7 +219,6 @@ def sample_binary_segments(size, seed, segment_probs, segments, segment_names):
             binary = True
     np.random.seed()
     return [segment_names[i] for i in s], seg_feature_vals 
-
 
 def inventory_colnames(features):
     return ['language', 'label'] + features
@@ -228,7 +284,7 @@ def create_parser():
                         help='number of parallel jobs; '
                         'match CPU count if value is less than 1')
     parser.add_argument('--initial-seed', type=int, default=None,
-                        help='initial random seed for inventories, increased '
+                        help='initial brandom seed for inventories, increased '
                         'by one for each in a predictable but meaningless '
                         'order (default: variable)')
     parser.add_argument('--skipcols', type=int, default=2,
@@ -254,7 +310,7 @@ def create_parser():
     parser.add_argument('inventories_locations', help='list of csv files'
                         'containing independent sets of inventories; '
                         'each set of inventories will be paired with its own'
-                        'set of random inventories', nargs='+')
+                        'set of brandom inventories', nargs='+')
     return parser
 
 

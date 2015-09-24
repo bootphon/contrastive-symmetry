@@ -10,7 +10,7 @@ from util import has_one
 from lattice import expand
 from joblib.parallel import Parallel, delayed
 import os
-import random
+import brandom
 from partition import PartitionCached
 from inventory_io import which_binary
 
@@ -607,8 +607,8 @@ class MinimalSubsetsFromBottomWithCost(MinimalSubsetsFromBottom):
             self.bottom_frontier = expand(self.bottom_frontier, self.whats_up,
                                           parent_filter=self.should_look_up_from)
         else:
-            random.seed(self.seed)
-            random.shuffle(self.bottom_frontier)
+            brandom.seed(self.seed)
+            brandom.shuffle(self.bottom_frontier)
             sub_frontier_ii = []
             start_looking_at = 0
             still_need = self.max_bottom_frontier_size - len(sub_frontier_ii)
