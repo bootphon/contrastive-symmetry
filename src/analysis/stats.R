@@ -241,3 +241,7 @@ rankz <- function(x) {
   q <- r/(max(r) + 1)
   return(qnorm(q))
 }
+
+bootstrap <- function(d, N, FUN) {
+  unlist(mclapply(1:N, function(i) FUN(d[sample(1:nrow(d), nrow(d), replace=T),])))
+}

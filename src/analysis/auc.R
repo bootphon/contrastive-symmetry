@@ -72,8 +72,20 @@ auc <- function(tpr, fpr) {
   return(auc_partial)
 }
 
+auc_by <- function(d, measure, classes, goldleft) {
+  if (!(length(unique(d[[classes]])) == 2)) {
+    stop("need exactly two classes")
+  }
+  if (!(goldleft %in% unique(d[[classes]]))) {
+    stop("need gold left class in the class list")
+  }
+  classes_f <- factor(d[[classes]])
+  if (goldleft != levels(classes_f)[1]) {
+    classes_f <- relevel(classes_f, goldleft)
+  }
+  pred_stats(d[[measure]], classes_f) %$% auc(tpr, fpr)
+}
+
 auc_by_inventory_type <- function(d, measure) {
-  pred_stats(d[[measure]],
-             factor(d$inventory_type, levels=c("Random", "Natural"))) %$%
-    auc(tpr, fpr)
+  auc_by(d, measure, "inventory_type", "Random")
 }
