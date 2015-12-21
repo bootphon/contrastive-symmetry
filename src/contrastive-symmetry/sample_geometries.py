@@ -63,11 +63,12 @@ def step_random(inv, num_fixed, column_powers):
 
 class GeometryGenerator(object):
     def __init__(self, nseg, nfeat, max_tries, max_samples,
-                 test_isospectral=False, real_test="always"):
+                 test_isospectral=False, real_test="always",
+                 scaffold_limit=None):
         if nseg < scaffolding_size(nfeat):
             self.scaffolding = []
         else:
-            self.scaffolding = all_scaffolds(nfeat)
+            self.scaffolding = all_scaffolds(nfeat, scaffold_limit)
         self.generated_inventories = []
         self.nseg = nseg
         self.nfeat = nfeat
@@ -189,6 +190,10 @@ def parse_args(arguments):
                         'to generate per unique (k) scaffolding '
                         '(default: 100)', default=100,
                         type=int)
+    parser.add_argument('--scaffold-expansion-limit',
+                        help='scaffold expansion limit '
+                        '(default: None; FIXME explain)', default=None,
+                        type=int)
     parser.add_argument('--use-spectrum-only', help='use only spectral '
                         'test', action='store_true')
     parser.add_argument('--use-spectrum', help='use spectral test unlesss '
@@ -206,15 +211,18 @@ if __name__ == "__main__":
     if args.use_spectrum_only:
         generator = GeometryGenerator(args.nseg, args.nfeat,
                                    args.max_tries, args.max_samples,
-                                   real_test="never")
+                                   real_test="never",
+                                   scaffold_limit=args.scaffold_expansion_limit)
     elif args.use_spectrum:
         generator = GeometryGenerator(args.nseg, args.nfeat,
                                    args.max_tries, args.max_samples,
-                                   real_test="when_stuck")
+                                   real_test="when_stuck",
+                                   scaffold_limit=args.scaffold_expansion_limit)
     else:
         generator = GeometryGenerator(args.nseg, args.nfeat,
                                    args.max_tries, args.max_samples,
-                                   real_test="always")
+                                   real_test="always",
+                                   scaffold_limit=args.scaffold_expansion_limit)
     for inv in generator:
         write_stats(hf_out, inv, args.print_shape)
     hf_out.close()
