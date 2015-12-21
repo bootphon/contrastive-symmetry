@@ -106,6 +106,8 @@ class GeometryGenerator(object):
     def next(self):
         if self.done:
             raise StopIteration()
+        if len(self.scaffolding_i_still_ok) == 0:
+            raise StopIteration()
         if self.nseg > 2**self.nfeat:
             raise StopIteration()
         if scaffolding_size(self.nfeat) > self.nseg:
@@ -121,6 +123,9 @@ class GeometryGenerator(object):
         while True:
             sc_i = random.sample(self.scaffolding_i_still_ok, 1)[0]
             sc = self.scaffolding[sc_i]
+            if self.nseg == scaffolding_size(self.nfeat):
+                self.scaffolding_i_still_ok.remove(sc_i)
+                return sc
             inv = init_random(sc, self.nseg, self.column_powers)
             if self.test_same(inv):
                 inv = step_random(inv, scaffolding_size(self.nfeat),
@@ -136,8 +141,6 @@ class GeometryGenerator(object):
             self.scaffolding_samples[sc_i] += 1
             if self.scaffolding_samples[sc_i] > self.max_samples:
                 self.scaffolding_i_still_ok.remove(sc_i)
-                if len(self.scaffolding_i_still_ok) == 0:
-                    self.done = True
             return inv
     
 def write_stats(fn, inv, print_shape):
