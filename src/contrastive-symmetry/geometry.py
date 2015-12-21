@@ -206,6 +206,5 @@ def all_scaffolds(k, expansion_limit=None):
                 if not contains_same_geometry(expansions, e):
                     expansions.append(e)                
         frontier = expansions
-        print str(explored_up_to_size) + " " + str(len(frontier))
         explored_up_to_size += 1
     return frontier
