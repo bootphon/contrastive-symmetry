@@ -78,22 +78,22 @@ inventory_type=c("Random Segment","Random Matrix","Random Feature",
 
 TBALANCE_FILENAME_TABLE <- data.frame(
   filename=c(
-             "../stats/inv_rs_tbalance.csv",
-             "../stats/inv_rm_tbalance.csv",
-             "../stats/inv_rf_tbalance.csv",
-             "../stats/inv_bin_tbalance.csv",
-             "../stats/cons_rs_tbalance.csv",
-             "../stats/cons_rm_tbalance.csv",
-             "../stats/cons_rf_tbalance.csv",
-             "../stats/cons_bin_tbalance.csv",             
-             "../stats/stop_rs_tbalance.csv",
-             "../stats/stop_rm_tbalance.csv",
-             "../stats/stop_rf_tbalance.csv",
-             "../stats/stop_bin_tbalance.csv",             
-             "../stats/vowel_rs_tbalance.csv",
-             "../stats/vowel_rm_tbalance.csv",
-             "../stats/vowel_rf_tbalance.csv",
-             "../stats/vowel_bin_tbalance.csv"
+             "../stats/inv_rs_tbalance_min.csv",
+             "../stats/inv_rm_tbalance_min.csv",
+             "../stats/inv_rf_tbalance_min.csv",
+             "../stats/inv_bin_tbalance_min.csv",
+             "../stats/cons_rs_tbalance_min.csv",
+             "../stats/cons_rm_tbalance_min.csv",
+             "../stats/cons_rf_tbalance_min.csv",
+             "../stats/cons_bin_tbalance_min.csv",             
+             "../stats/stop_rs_tbalance_min.csv",
+             "../stats/stop_rm_tbalance_min.csv",
+             "../stats/stop_rf_tbalance_min.csv",
+             "../stats/stop_bin_tbalance_min.csv",             
+             "../stats/vowel_rs_tbalance_min.csv",
+             "../stats/vowel_rm_tbalance_min.csv",
+             "../stats/vowel_rf_tbalance_min.csv",
+             "../stats/vowel_bin_tbalance_min.csv"
 #             ,"../stats/deboer_vowels_tbalance.csv"
              ),
 segment_type=c("Whole", "Whole", "Whole", "Whole", 
@@ -116,22 +116,22 @@ inventory_type=c("Random Segment","Random Matrix","Random Feature",
 
 
 PCOUNT_FILENAME_TABLE <- data.frame(
-  filename=c("../stats/inv_rs_pair_counts_med.csv",
-             "../stats/inv_rm_pair_counts_med.csv",
-             "../stats/inv_rf_pair_counts_med.csv",
-             "../stats/inv_bin_pair_counts_med.csv",
-             "../stats/cons_rs_pair_counts_med.csv",
-             "../stats/cons_rm_pair_counts_med.csv",
-             "../stats/cons_rf_pair_counts_med.csv",
-             "../stats/cons_bin_pair_counts_med.csv",             
-             "../stats/stop_rs_pair_counts_med.csv",
-             "../stats/stop_rm_pair_counts_med.csv",
-             "../stats/stop_rf_pair_counts_med.csv",
-             "../stats/stop_bin_pair_counts_med.csv",             
-             "../stats/vowel_rs_pair_counts_med.csv",
-             "../stats/vowel_rm_pair_counts_med.csv",
-             "../stats/vowel_rf_pair_counts_med.csv",
-             "../stats/vowel_bin_pair_counts_med.csv"
+  filename=c("../stats/inv_rs_pair_counts_min.csv",
+             "../stats/inv_rm_pair_counts_min.csv",
+             "../stats/inv_rf_pair_counts_min.csv",
+             "../stats/inv_bin_pair_counts_min.csv",
+             "../stats/cons_rs_pair_counts_min.csv",
+             "../stats/cons_rm_pair_counts_min.csv",
+             "../stats/cons_rf_pair_counts_min.csv",
+             "../stats/cons_bin_pair_counts_min.csv",             
+             "../stats/stop_rs_pair_counts_min.csv",
+             "../stats/stop_rm_pair_counts_min.csv",
+             "../stats/stop_rf_pair_counts_min.csv",
+             "../stats/stop_bin_pair_counts_min.csv",             
+             "../stats/vowel_rs_pair_counts_min.csv",
+             "../stats/vowel_rm_pair_counts_min.csv",
+             "../stats/vowel_rf_pair_counts_min.csv",
+             "../stats/vowel_bin_pair_counts_min.csv"
 #             , "../stats/deboer_vowels_pair_counts_med.csv"
   ),
 segment_type=c("Whole", "Whole", "Whole", "Whole",
@@ -157,5 +157,5 @@ inventory_type=c("Random Segment","Random Matrix","Random Feature",
 
 D_MINFEAT_FILENAME <- "../stats/deboer_vowels_minfeat.csv"
 D_ISIZE_FILENAME <- "../stats/deboer_vowels_size.csv"
-D_TBALANCE_FILENAME <- "../stats/deboer_vowels_tbalance.csv"
-D_PCOUNT_FILENAME <- "../stats/deboer_vowels_pair_counts_med.csv"
+D_TBALANCE_FILENAME <- "../stats/deboer_vowels_tbalance_min.csv"
+D_PCOUNT_FILENAME <- "../stats/deboer_vowels_pair_counts_min.csv"

@@ -6,9 +6,11 @@ output: html_document
 ```{r init, include=FALSE, cache=FALSE}
 library(plyr)
 library(ggplot2)
+library(grid)
 library(cowplot)
 library(dplyr)
 library(car)
+library(foreach)
 source("../src/analysis/util.R")
 source("../src/analysis/read.R")
 source("../src/analysis/plot.R")
@@ -26,35 +28,72 @@ minfeat_r <- combine_dlist(read_from_filename_table(MINFEAT_FILENAME_TABLE))
 names(minfeat_r)[2] <- "nfeat"
 tbalance_r <- combine_dlist(read_from_filename_table(TBALANCE_FILENAME_TABLE))
 pcount_r <- combine_dlist(read_from_filename_table(PCOUNT_FILENAME_TABLE))
+
+#TOTALS <- read.csv("../TOTALS.csv")
+#TOTALS_REST <- read.csv("../TOTALS_REST.csv")
+#TOTALS_ <- rbind(TOTALS[,c(1,2,7:10)], TOTALS_REST)
+TOTALS_ <- read.csv("../TOTALS_REST.csv")
 ```
 
 ```{r process-input, include=FALSE, cache=TRUE}
+normalize <- function(v, mn, mx, fallback) {
+  ifelse(mx==mn, fallback, (v-mn)/(mx-mn))
+}
+registerDoParallel()
 stats_by_i <- merge(minfeat_r, size_r)
+#stats_by_i <- merge(stats_by_i, TOTALS_)
 stats_by_i$ec <- with(stats_by_i, size/(2^nfeat))
-stats_by_i$eek <- with(stats_by_i, size/nfeat)
 
-stats_by_fi <- merge(merge(stats_by_i, tbalance_r), pcount_r)
-stats_by_fi$fb <- with(stats_by_fi, 1.-tbalance/(size-1))
-stats_by_fi$mp <- with(stats_by_fi, pair_count/pmin(minus, plus))
+tbalance_by_si <- ddply(tbalance_r, .(language, segment_type, inventory_type,
+                                     spec_id),
+                       summarize, stb=sum(tbalance), .parallel=T)
+stats_by_i_ <- merge(stats_by_i, tbalance_by_i)
+stats_by_i_$fb <- with(stats_by_i_, 1.-normalize(stb, min_sum_ssegs, max_sum_ssegs, 0))
+  
 
-stats_by_i <- merge(stats_by_i, ddply(stats_by_fi, .(language, segment_type,
-                                                      inventory_type),
-                                      summarize, fb=median(fb),
-                                      mp=median(mp)))
+tbalance_by_fi <- merge(stats_by_i, tbalance_r)
 
-stats_by_f <- ddply(stats_by_fi, .(feature, segment_type, inventory_type),
-                                      summarize,  mp=median(mp))
+tbalance_by_i <- ddply(tbalance_by_fi, .(language, segment_type, inventory_type),
+                       summarize, stb=sum(tbalance), .parallel=T)
+stats_by_i_ <- merge(stats_by_i, tbalance_by_i)
+stats_by_i_$fb <- with(stats_by_i_, 1.-normalize(stb, min_sum_ssegs, max_sum_ssegs, 0))
+  
+#stats_by_fi$fb <- with(stats_by_fi, 1.-normalize(tbalance, min_min_ssegs,
+#                                                 max_max_ssegs, 0))
+
+pcount_by_fsi <- merge(pcount_r, size_r)
+pcount_by_si <- ddply(pcount_by_fsi, .(language, segment_type, inventory_type,
+                                       spec_id),
+                      summarize, spc=sum(pair_count), .parallel=T)
+pcount_by_si_ <- merge(pcount_by_si, stats_by_i)
+pcount_by_si_$mp <- with(pcount_by_si_, normalize(spc, min_sum_pairs, max_sum_pairs, 1))
+pcount_by_i <- ddply(pcount_by_si_, .(language, segment_type, inventory_type),
+                          summarize, mpnn=median(mp), .parallel=T)
+#tb_by_i <- ddply(stats_by_fi, .(language, segment_type, inventory_type), summarize,
+#                 fb=mean(fb), .parallel=T)
+
+stats_by_i <- merge(stats_by_i_, pcount_by_i)
+
+#stats_by_f <- ddply(stats_by_fi, .(feature, segment_type, inventory_type),
+#                                      summarize,  mp=median(mp))
 ```
 
 ```{r deboer, include=FALSE, cache=TRUE}
 size_d <- read.csv(D_ISIZE_FILENAME)
 minfeat_d <- read.csv(D_MINFEAT_FILENAME)
 names(minfeat_d)[2] <- "nfeat"
+minfeat_d <- unique(minfeat_d[,1:2])
 tbalance_d <- read.csv(D_TBALANCE_FILENAME)
 pcount_d <- read.csv(D_PCOUNT_FILENAME)
 
 stats_d <- merge(minfeat_d, size_d)
+stats_d <- merge(stats_d, TOTALS_)
 stats_d$ec <- with(stats_d, size/(2^nfeat))
+tb_d <- merge(tbalance_d, stats_d)
+tb_d_ <- ddply(tb_d, .(language), summarize, sst=sum(tbalance))
+tb_d <- merge(stats_d, tb_d_)
+tb_d$fb <- with(tb_d, 1.-normalize(sst, min_sum_ssegs, max_sum_ssegs, 0))
+
 stats_d_f <- merge(merge(stats_d, tbalance_d), pcount_d)
 stats_d_f$fb <- with(stats_d_f, 1.-tbalance/(size-1))
 stats_d_f$mp <- with(stats_d_f, pair_count/pmin(minus, plus))
@@ -93,6 +132,28 @@ set.seed(NULL)
 
 ##Economy
 
+```{r ec-whole,echo=FALSE, fig.width=30, fig.height=15}
+d <- one_random(stats_by_i, "Random Segment")
+d$segment_type <- factor(d$segment_type, levels=c("Whole", "Consonant",
+                                                  "Stop", "Vowel"))
+d$inventory_type <- factor(d$inventory_type, levels=c("Random", "Natural"))
+d_summ <- ddply(filter(d, segment_type=="Whole"),
+                       .(segment_type, inventory_type), summarize,
+                ec_mean=mean(ec))
+p <- ggplot(filter(d, segment_type=="Whole"), aes_string(x="ec")) +
+      geom_vline(data=d_summ, aes(xintercept=ec_mean, colour=inventory_type),
+                 lwd=5.5, alpha=0.8) +
+      geom_vline(data=d_summ, aes(xintercept=ec_mean, group=inventory_type),
+                 lwd=2.5, alpha=1.0) 
+p1 <- plot_prevalence(filter(d, segment_type=="Whole"), "ec", "inventory_type",
+                     "Economy (Ec)", "Inventory Type",
+                     point_size=4.0, line_width=2.0, text_size=36,
+                     change_font=T, initial_plot=p, bins=31)  +
+      theme(plot.margin = unit(c(0.5,1.5,0.5,0.5), "cm"))
+print(p1)
+```
+
+
 ```{r ec-paper,echo=FALSE, fig.width=30, fig.height=15}
 d <- one_random(stats_by_i, "Random Segment")
 d$segment_type <- factor(d$segment_type, levels=c("Whole", "Consonant",
@@ -112,6 +173,45 @@ p1 <- plot_prevalence(d, "ec", "inventory_type",
       facet_wrap(~ segment_type)
 print(p1)
 ```
+
+```{r ec-all-big,echo=FALSE, fig.width=30, fig.height=15}
+d <- one_random(stats_by_i, "Random Segment")
+d$segment_type <- factor(d$segment_type, levels=c("Whole", "Consonant",
+                                                  "Stop", "Vowel"))
+d$inventory_type <- factor(d$inventory_type, levels=c("Random", "Natural"))
+d_summ <- ddply(d, .(segment_type, inventory_type), summarize,
+                ec_mean=mean(ec))
+p <- ggplot(d, aes_string(x="ec")) +
+      geom_vline(data=d_summ, aes(xintercept=ec_mean, colour=inventory_type),
+                 lwd=5.5, alpha=0.8) +
+      geom_vline(data=d_summ, aes(xintercept=ec_mean, group=inventory_type),
+                 lwd=2.5, alpha=1.0) 
+p1 <- plot_prevalence(d, "ec", "inventory_type",
+                     "Econ", "Inventory Type",
+                     point_size=4.0, line_width=2.0, text_size=36,
+                     change_font=T, initial_plot=p, bins=31)  +
+      theme(plot.margin = unit(c(0.5,1.5,0.5,0.5), "cm")) +
+      facet_wrap(~ segment_type)
+print(p1)
+```
+```{r ec-roc-whole,echo=TRUE}
+d <- one_random(stats_by_i, "Random Segment")
+d$segment_type <- factor(d$segment_type, levels=c("Whole", "Consonant",
+                                                  "Stop", "Vowel"))
+d$inventory_type <- factor(d$inventory_type, levels=c("Random", "Natural"))
+d <- filter(d, segment_type=="Whole")
+rocs <- ddply(d, .(segment_type),
+              function(dd) pred_stats(dd$ec, dd$inventory_type))
+p <- ggplot(rocs, aes(x=fpr, y=tpr)) +
+       geom_abline(slope=1.0, intercept=0.0, linetype="dashed", size=3.2) +
+       geom_line(size=3.2) +
+       theme(legend.position="bottom") + ylim(c(0,1)) + 
+       theme(text=element_text(size=36), axis.text=element_text(size=36)) +
+       xlab("False positive rate") + ylab("True positive rate") +
+       scale_colour_manual(values=segment_types_palette)
+print(p)
+```
+
 
 ```{r ec-rocs,echo=TRUE}
 d <- one_random(stats_by_i, "Random Segment")
@@ -164,13 +264,34 @@ d_summ <- ddply(d, .(segment_type, inventory_type), summarize,
                 fb_mean=mean(fb))
 p <- ggplot(d, aes_string(x="fb")) +
       geom_vline(data=d_summ, aes(xintercept=fb_mean, colour=inventory_type),
-                 lwd=1.5, alpha=0.8) +
+                 lwd=5.5, alpha=0.8) +
       geom_vline(data=d_summ, aes(xintercept=fb_mean, group=inventory_type),
-                 lwd=0.5, alpha=1.0) 
+                 lwd=2.5, alpha=1.0) 
 p2 <- plot_prevalence(d, "fb", "inventory_type",
                      "Balance (Bal)", "Inventory Type",
                      point_size=2.0, line_width=0.8,
                      change_font=F, initial_plot=p, bins=31) +
+      facet_wrap(~ segment_type)
+print(p2)
+```
+
+```{r fb-big,echo=FALSE, fig.width=30, fig.height=15}
+d <- one_random(stats_by_i, "Random Segment")
+d$segment_type <- factor(d$segment_type, levels=c("Whole", "Consonant",
+                                                  "Stop", "Vowel"))
+d$inventory_type <- factor(d$inventory_type, levels=c("Random", "Natural"))
+d_summ <- ddply(d, .(segment_type, inventory_type), summarize,
+                fb_mean=mean(fb))
+p <- ggplot(d, aes_string(x="fb")) +
+      geom_vline(data=d_summ, aes(xintercept=fb_mean, colour=inventory_type),
+                 lwd=1.5, alpha=0.8) +
+      geom_vline(data=d_summ, aes(xintercept=fb_mean, group=inventory_type),
+                 lwd=0.5, alpha=1.0) 
+p2 <- plot_prevalence(d, "fb", "inventory_type",
+                     "Glob", "Inventory Type",
+                     point_size=4.0, line_width=2.0, text_size=36,
+                     change_font=T, initial_plot=p, bins=31)  +
+      theme(plot.margin = unit(c(0.5,1.5,0.5,0.5), "cm")) +
       facet_wrap(~ segment_type)
 print(p2)
 ```
@@ -223,13 +344,13 @@ d$segment_type <- factor(d$segment_type, levels=c("Whole", "Consonant",
                                                   "Stop", "Vowel"))
 d$inventory_type <- factor(d$inventory_type, levels=c("Random", "Natural"))
 d_summ <- ddply(d, .(segment_type, inventory_type), summarize,
-                mp_mean=mean(mp))
-p <- ggplot(d, aes_string(x="mp")) +
+                mp_mean=mean(mpnn))
+p <- ggplot(d, aes_string(x="mpnn")) +
       geom_vline(data=d_summ, aes(xintercept=mp_mean, colour=inventory_type),
                  lwd=1.5, alpha=0.8) +
       geom_vline(data=d_summ, aes(xintercept=mp_mean, group=inventory_type),
                  lwd=0.5, alpha=1.0) 
-p3 <- plot_prevalence(d, "mp", "inventory_type",
+p3 <- plot_prevalence(d, "mpnn", "inventory_type",
                      "Density (Mp)", "Inventory Type",
                      point_size=2.0, line_width=0.8,
                      change_font=F, initial_plot=p, bins=31) +
@@ -237,10 +358,32 @@ p3 <- plot_prevalence(d, "mp", "inventory_type",
 print(p3)
 ```
 
+```{r mp-big,echo=FALSE, fig.width=30, fig.height=15}
+d <- one_random(stats_by_i, "Random Segment")
+d$segment_type <- factor(d$segment_type, levels=c("Whole", "Consonant",
+                                                  "Stop", "Vowel"))
+d$inventory_type <- factor(d$inventory_type, levels=c("Random", "Natural"))
+d_summ <- ddply(d, .(segment_type, inventory_type), summarize,
+                mpnn_mean=mean(mpnn))
+p <- ggplot(d, aes_string(x="mpnn")) +
+      geom_vline(data=d_summ, aes(xintercept=mpnn_mean, colour=inventory_type),
+                 lwd=1.5, alpha=0.8) +
+      geom_vline(data=d_summ, aes(xintercept=mpnn_mean, group=inventory_type),
+                 lwd=0.5, alpha=1.0) 
+p2 <- plot_prevalence(d, "mpnn", "inventory_type",
+                     "Loc", "Inventory Type",
+                     point_size=4.0, line_width=2.0, text_size=36,
+                     change_font=T, initial_plot=p, bins=31)  +
+      theme(plot.margin = unit(c(0.5,1.5,0.5,0.5), "cm")) +
+      facet_wrap(~ segment_type)
+print(p2)
+```
+
+
 ```{r mp-aucs,echo=TRUE}
 d <- one_random(stats_by_i, "Random Segment")
 ddply(d, .(segment_type),
-      .fun=partial(auc_by_inventory_type, measure="mp"))
+      .fun=partial(auc_by_inventory_type, measure="mpnn"))
 ```
 
 ```{r mp-bootstrap-aucs,echo=TRUE}
@@ -296,8 +439,8 @@ p2 <- plot_prevalence(d, "fb", "inventory_type",
       theme(text=element_text(family="Times New Roman", size=24))
 
 d_summ <- ddply(d, .(segment_type, inventory_type), summarize,
-                mp_mean=mean(mp))
-p <- ggplot(d, aes_string(x="mp")) +
+                mp_mean=mean(mpnn))
+p <- ggplot(d, aes_string(x="mpnn")) +
       geom_vline(data=d_summ, aes(xintercept=mp_mean, colour=inventory_type),
                  lwd=1.5, alpha=0.8) +
       geom_vline(data=d_summ, aes(xintercept=mp_mean, group=inventory_type),
@@ -615,24 +758,24 @@ d$inventory_type <- factor(d$inventory_type, levels=c("Natural",
                                                       "Random Feature",
                                                       "Random Matrix"))
 levels(d$inventory_type)[2] <- "Control"
-levels(d$inventory_type)[3] <- "Asymmetrical"
+levels(d$inventory_type)[3] <- "Weighted"
 levels(d$inventory_type)[4] <- "Uniform"
 
 d_means <- ddply(d, .(inventory_type, segment_type), summarize,
-                      ec=mean(ec), fb=mean(fb), mp=mean(mp))
+                      ec=mean(ec), fb=mean(fb), mpnn=mean(mpnn))
 d_control <- filter(d_means, inventory_type == "Uniform")
 d_natural_vc <- filter(d_means, inventory_type == "Natural")
-d_newrand_vc <- filter(d_means, inventory_type %in% c("Asymmetrical", "Control"))
-d_control <- melt(d_control, measure.vars=c("ec", "fb", "mp"),
+d_newrand_vc <- filter(d_means, inventory_type %in% c("Weighted", "Control"))
+d_control <- melt(d_control, measure.vars=c("ec", "fb", "mpnn"),
                      variable_name = "measure")
-d_natural_vc <- melt(d_natural_vc, measure.vars=c("ec", "fb", "mp"),
+d_natural_vc <- melt(d_natural_vc, measure.vars=c("ec", "fb", "mpnn"),
                      variable_name = "measure")
-d_newrand_vc <- melt(d_newrand_vc, measure.vars=c("ec", "fb", "mp"),
+d_newrand_vc <- melt(d_newrand_vc, measure.vars=c("ec", "fb", "mpnn"),
                      variable_name = "measure")
-levels(d_natural_vc$measure) <- c("Econ", "Glob", "Loc")
-levels(d_newrand_vc$measure) <- c("Econ", "Glob", "Loc")
+levels(d_natural_vc$measure) <- c("Econ", "Glob",  "Loc")
+levels(d_newrand_vc$measure) <- c("Econ", "Glob",  "Loc")
 d_newrand_vc$inventory_type <- factor(d_newrand_vc$inventory_type,
-                                      levels=c("Asymmetrical", "Control"))
+                                      levels=c("Weighted", "Control"))
 
 d_natural_vc$value <- d_natural_vc$value - d_control$value
 
@@ -646,9 +789,9 @@ ggplot(d_newrand_vc, aes(x=0, y=value, fill=inventory_type)) +
              size=2, 
              colour=random_types_palette["Natural"]) +
   geom_hline(data=d_natural_vc, aes(yintercept=value),
-             size=1, linetype="dashed")+
+             size=1, linetype="dashed") +
   scale_fill_manual(values=random_types_palette,
-                    drop=T, name="Comparison set") +
+                     name="Comparison set") +
   ylab("Level of property  -  level in uniform inventories") +
   theme(axis.title.x=element_blank(),
        axis.ticks.x=element_blank(),
@@ -797,7 +940,7 @@ auc_f <- function(m) ldply(bootstrap_d_labels,
         d <- rbind(d_boer, nat)
         return(auc_by_inventory_type(d, measure=m))
       })
-aucs_mp <- auc_f("mp")
+aucs_mp <- auc_f("mpnn")
 aucs_ec <- auc_f("ec")
 aucs_fb <- auc_f("fb")
 
@@ -815,7 +958,7 @@ d$inventory_type <- factor(d$inventory_type, levels=c("Natural",
 levels(d$inventory_type)[2] <- "Control"
 levels(d$inventory_type)[3] <- "Asymmetrical"
 levels(d$inventory_type)[4] <- "Uniform"
-d <- melt(d, measure.vars=c("ec", "fb", "mp"), variable_name = "measure")
+d <- melt(d, measure.vars=c("ec", "fb", "mp", "mpnn"), variable_name = "measure")
 
 dd <- filter(d, inventory_type %in% c("Control", "Natural"))
 dd_sample <- ddply(dd, .(segment_type, measure),

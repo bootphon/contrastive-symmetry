@@ -6,6 +6,8 @@ Created on 2015-12-20
 
 import numpy as np
 import igraph as ig
+import sys
+import random
 
 TOLERANCE = 1e-7
 
@@ -184,18 +186,26 @@ def scaffolding_size(k):
 '''
 Precondition: k >= 1
 '''
-def all_scaffolds(k):
+def all_scaffolds(k, expansion_limit=None):
     max_size = scaffolding_size(k)
     frontier = [Inventory(k)]
     explored_up_to_size = 2
     while explored_up_to_size < max_size:
         expansions = []
         feat = explored_up_to_size - 1
+        sys.stdout.flush()
         for inv in frontier:
-            possible_expansions = [copy_add(inv, with_positive(s, feat)) for s in inv]
+            if expansion_limit and inv.n*len(frontier) > expansion_limit:
+                max_here = expansion_limit//len(frontier)
+                segments = random.sample(inv.segments, max_here)
+            else:
+                segments = inv.segments
+            possible_expansions = [copy_add(inv, with_positive(s, feat)) \
+                                       for s in segments]
             for e in possible_expansions:
                 if not contains_same_geometry(expansions, e):
                     expansions.append(e)                
         frontier = expansions
+        print str(explored_up_to_size) + " " + str(len(frontier))
         explored_up_to_size += 1
     return frontier

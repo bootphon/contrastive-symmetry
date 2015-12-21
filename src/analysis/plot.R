@@ -8,7 +8,7 @@ random_types_palette <- c("#E69F00", "#56B4E9", "#CC79A7", "#0072B2",
                           "#D55E00")
 names(random_types_palette) <- c("Control",
                                  "Natural",
-                                 "Asymmetrical",
+                                 "Weighted",
                                  "deBoer", "Uniform")
 default_text_colour <- "#535353"
 segment_types_palette <- c("#009E73", "#56B4E9", "#0072B2", 
@@ -93,7 +93,7 @@ plot_prevalence <- function(d, dep_measure, group,
                     size=point_size*1.7,  origin=(min(d[[dep_measure]])-binwidth/2.0))
   if (!is.null(group)) {
     p <- p + stat_bin(aes(y=..ndensity..), binwidth=binwidth, position='identity',
-             geom="point",  origin=(min(d[[dep_measure]])-binwidth/2.0)) +
+             geom="point", size=point_size*1.2,  origin=(min(d[[dep_measure]])-binwidth/2.0)) +
              aes_string(colour=group)
   } else {
     p <- p + stat_bin(aes(y=..ndensity..), binwidth=binwidth, position='identity',
@@ -102,7 +102,8 @@ plot_prevalence <- function(d, dep_measure, group,
   }
   if (change_font) {
     p <- p +
-    theme(text=element_text(size=text_size, colour=text_colour))
+    theme(text=element_text(size=text_size, colour=text_colour),
+          axis.text=element_text(size=text_size, colour=text_colour))
   }
   p <- p + theme(legend.position=legend)
   p <- p + 
