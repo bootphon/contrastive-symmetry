@@ -138,7 +138,6 @@ class GeometryGenerator(object):
                 self.scaffolding_i_still_ok.remove(sc_i)
                 if len(self.scaffolding_i_still_ok) == 0:
                     self.done = True
-                print(self.scaffolding_i_still_ok)
             return inv
     
 def write_stats(fn, inv, print_shape):
