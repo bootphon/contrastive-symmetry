@@ -63,26 +63,31 @@ def step_random(inv, num_fixed, column_powers):
 
 class GeometryGenerator(object):
     def __init__(self, nseg, nfeat, max_tries, max_samples,
-                 test_isospectral=False, spectral_test=False):
+                 test_isospectral=False, real_test="always"):
         if nseg < scaffolding_size(nfeat):
             self.scaffolding = []
         else:
-            self.scaffolding = all_scaffolds(nfeat,
-                                             test_isospectral or spectral_test,
-                                             spectral_test)
+            self.scaffolding = all_scaffolds(nfeat)
         self.generated_inventories = []
         self.nseg = nseg
         self.nfeat = nfeat
         self.max_tries = max_tries
         self.max_samples = max_samples
-        self.scaffolding_pos = 0
-        self.filled_scaffold = False
-        self.early_stop = False
-        self.scaffold_sample = 0
+        self.done = False
+        self.scaffolding_samples = [0]*len(self.scaffolding)
+        self.scaffolding_i_still_ok = range(len(self.scaffolding))
         self.column_powers = 2**np.array(range(nfeat-1,-1,-1), dtype=int)
         self.test_isospectral = test_isospectral
         self.current_isospectral = []
-        self.spectral_test = spectral_test
+        if real_test == "never":
+            self.spectral_test = True
+            self.real_test_when_stuck = False
+        elif real_test == "when_stuck":
+            self.spectral_test = True
+            self.real_test_when_stuck = True
+        else:
+            self.spectral_test = False
+            self.real_test_when_stuck = False
         
     def __iter__(self):
         return self
@@ -99,68 +104,42 @@ class GeometryGenerator(object):
         return result
     
     def next(self):
+        if self.done:
+            raise StopIteration()
         if self.nseg > 2**self.nfeat:
             raise StopIteration()
         if scaffolding_size(self.nfeat) > self.nseg:
             raise StopIteration()
+        if self.nseg == 2**self.nfeat:
+            inv = init_random(self.scaffolding[0], self.nseg,
+                              self.column_powers)
+            self.done = True
+            return inv
+        fails = 0
+        if self.real_test_when_stuck:
+            self.spectral_test = True
         while True:
-            if self.scaffolding_pos >= len(self.scaffolding):
-                raise StopIteration()
-            if self.scaffold_sample >= self.max_samples:
-                self.scaffolding_pos += 1
-                self.scaffold_sample = 0
-                self.filled_scaffold = False
-                continue
-            if not self.filled_scaffold:
-                sc = self.scaffolding[self.scaffolding_pos]
-                new_inv = init_random(sc, self.nseg,
-                                      self.column_powers)
-                no_good = False
-                if self.nseg == 2**self.nfeat:
-                    if self.test_same(new_inv):
-                        no_good = True
-                else:
-                    fails = 0
-                    while self.test_same(new_inv) and fails < self.max_tries:
-                        fails += 1
-                        new_inv = init_random(sc, self.nseg,
-                                              self.column_powers)
-                    if fails == self.max_tries:
-                        no_good = True
-                if no_good:
-                    self.scaffolding_pos += 1
-                    self.scaffold_sample = 0
-                    self.filled_scaffold = False
+            sc_i = random.sample(self.scaffolding_i_still_ok, 1)[0]
+            sc = self.scaffolding[sc_i]
+            inv = init_random(sc, self.nseg, self.column_powers)
+            if self.test_same(inv):
+                inv = step_random(inv, scaffolding_size(self.nfeat),
+                                  self.column_powers)
+                if self.test_same(inv):
+                    if self.real_test_when_stuck:
+                        self.spectral_test = False
+                    fails += 1
+                    if fails >= self.max_tries:
+                        raise StopIteration()
                     continue
-                self.filled_scaffold = True
-                self.scaffold_sample += 1
-                self.generated_inventories.append(new_inv)
-                return new_inv
-            else:
-                no_good = False
-                if self.nseg == 2**self.nfeat or \
-                   scaffolding_size(self.nfeat) == self.nseg:
-                    no_good = True
-                else:
-                    new_inv = step_random(self.generated_inventories[-1],
-                                          scaffolding_size(self.nfeat),
-                                          self.column_powers)
-                    fails = 0
-                    while self.test_same(new_inv) and fails < self.max_tries:
-                        fails += 1
-                        new_inv = step_random(self.generated_inventories[-1],
-                                              scaffolding_size(self.nfeat),
-                                              self.column_powers)
-                    if fails == self.max_tries:
-                        no_good = True
-                if no_good:
-                    self.scaffolding_pos += 1
-                    self.scaffold_sample = 0
-                    self.filled_scaffold = False
-                    continue                    
-                self.scaffold_sample += 1
-                self.generated_inventories.append(new_inv)
-                return new_inv
+            self.generated_inventories.append(inv)
+            self.scaffolding_samples[sc_i] += 1
+            if self.scaffolding_samples[sc_i] > self.max_samples:
+                self.scaffolding_i_still_ok.remove(sc_i)
+                if len(self.scaffolding_i_still_ok) == 0:
+                    self.done = True
+                print(self.scaffolding_i_still_ok)
+            return inv
     
 def write_stats(fn, inv, print_shape):
     cols = range(inv.k)
@@ -176,6 +155,7 @@ def write_stats(fn, inv, print_shape):
                  '"' + repr(sorted(pairs)) + '"', 
                  '"' + repr(sorted(ssegs)) + '"']
     print(','.join([str(s) for s in stats]), file=fn)
+    fn.flush()
 
 def init_output(fn, print_shape):
     if fn is not None:
@@ -188,6 +168,7 @@ def init_output(fn, print_shape):
     else:
         print('size, nfeat, sum_pairs, sum_ssegs, pairs_repr, '
               'ssegs_repr', file=hf)
+    hf.flush()
     return hf
 
 def parse_args(arguments):
@@ -206,8 +187,10 @@ def parse_args(arguments):
                         'to generate per unique (k) scaffolding '
                         '(default: 100)', default=100,
                         type=int)
-    parser.add_argument('--use-spectrum', help='use only spectral '
+    parser.add_argument('--use-spectrum-only', help='use only spectral '
                         'test', action='store_true')
+    parser.add_argument('--use-spectrum', help='use spectral test unlesss '
+                        'stuck', action='store_true')
     parser.add_argument('nseg', help='number of segments', type=int)
     parser.add_argument('nfeat', help='number of features', type=int)
     parser.add_argument('output_file', help='name of output file'
@@ -218,9 +201,18 @@ def parse_args(arguments):
 if __name__ == "__main__":
     args = parse_args(sys.argv[1:])
     hf_out = init_output(args.output_file, args.print_shape)
-    generator = GeometryGenerator(args.nseg, args.nfeat,
+    if args.use_spectrum_only:
+        generator = GeometryGenerator(args.nseg, args.nfeat,
                                    args.max_tries, args.max_samples,
-                                   spectral_test=args.use_spectrum)
+                                   real_test="never")
+    elif args.use_spectrum:
+        generator = GeometryGenerator(args.nseg, args.nfeat,
+                                   args.max_tries, args.max_samples,
+                                   real_test="when_stuck")
+    else:
+        generator = GeometryGenerator(args.nseg, args.nfeat,
+                                   args.max_tries, args.max_samples,
+                                   real_test="always")
     for inv in generator:
         write_stats(hf_out, inv, args.print_shape)
     hf_out.close()
