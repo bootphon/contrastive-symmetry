@@ -71,6 +71,17 @@ def collapse_those_containing(collection_of_collections, i, j):
     del collection_of_collections[group_j]
 
 def binary_counts(vec):
+    '''
+    vec is assumed to be binary and contain either -1/1,
+    0/1, or 0/-1. If the values are -1/1, the first returned element
+    is the number of -1's, and the second element is the number of 1's.
+    If there is a 0, the first returned element is always the number
+    of 0's. (This is true even if the other value is -1, in which
+    case, downstream, BalanceIterator will put the number of 0's as
+    the "minus count" and the number of -1's as the "plus count",
+    which is why the variables in this function have the names
+    that they do.)
+    '''
     values = np.unique(vec)
     if len(values) > 2:
         raise ValueError()
@@ -81,3 +92,7 @@ def binary_counts(vec):
     is_minus = vec == minus_val
     return sum(is_minus), sum(~is_minus)
         
+def spec_id(feature_set, feature_names):
+    feat_name_strings = [feature_names[c] for c in feature_set]
+    return "'" + ":".join(feat_name_strings) + "'"
+

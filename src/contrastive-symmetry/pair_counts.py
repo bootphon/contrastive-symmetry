@@ -9,7 +9,7 @@ import argparse
 import os
 from joblib.parallel import delayed, Parallel
 from partition import to_row_partition
-from util import get_cols_except
+from util import get_cols_except, spec_id
 
 __version__ = '0.0.1'
 
@@ -23,10 +23,6 @@ def minimal_count(table, features, on):
 
 def output_filename(inventory):
     return inventory["Language_Name"] + ".csv"
-
-def spec_id(feature_set, feature_names):
-    feat_name_strings = [feature_names[c] for c in feature_set]
-    return "'" + ":".join(feat_name_strings) + "'"
 
 def count_and_write(inventory, minimal_sets, output_nf, feature_names):
     with open(output_nf, "w") as hf:
