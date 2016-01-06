@@ -5,12 +5,13 @@ Created on 2015-05-18
 '''
 import argparse
 import sys
+from joblib.parallel import Parallel, delayed
+import numpy as np
+
 from inventory_io import read_inventories
 from util import has_one
 from lattice import expand
-from joblib.parallel import Parallel, delayed
 import os
-import brandom
 from partition import PartitionCached
 from inventory_io import which_binary
 
@@ -489,6 +490,8 @@ class MinimalSubsetsFromBottomWithCost(MinimalSubsetsFromBottom):
             raise ValueError()
         self.skipped = []
         self.dont_go_down_from = []
+        self.has_printed_first_skipped = False
+        self.inventory_name = inventory["Language_Name"]
 
     def skipped_below(self, s):
         return has_one(self.skipped, s.issuperset)
@@ -582,7 +585,10 @@ class MinimalSubsetsFromBottomWithCost(MinimalSubsetsFromBottom):
     def search_bottom_frontier(self):
         candidates = [f for f in self.bottom_frontier if self.is_spec(f)]
         if self.skipped:
-            print "checking skipped..."
+#            if not self.has_printed_first_skipped:
+#                print "cost skip (" + self.inventory_name + "): ",
+#                sys.stdout.flush()
+#                self.has_printed_first_skipped = True
             self.dodgy_top_frontier = []
             self.found_on_bottom_frontier = []
             for c in candidates:
@@ -591,11 +597,12 @@ class MinimalSubsetsFromBottomWithCost(MinimalSubsetsFromBottom):
                 else:
                     self.found_on_bottom_frontier.append(c)
             if self.dodgy_top_frontier:
-                print "found something dodgy; cleaning..."
                 self.found_on_bottom_frontier += self.descent_through_dodgy()
-                print ".. ok, clean"
+#                print "c",
+                sys.stdout.flush()
             else:
-                print ".. ok, no problem"
+#                print "O",
+                sys.stdout.flush()
         else:
             self.found_on_bottom_frontier = candidates
         if self.found_on_bottom_frontier:
@@ -607,8 +614,8 @@ class MinimalSubsetsFromBottomWithCost(MinimalSubsetsFromBottom):
             self.bottom_frontier = expand(self.bottom_frontier, self.whats_up,
                                           parent_filter=self.should_look_up_from)
         else:
-            brandom.seed(self.seed)
-            brandom.shuffle(self.bottom_frontier)
+            np.random.seed(self.seed)
+            np.random.shuffle(self.bottom_frontier)
             sub_frontier_ii = []
             start_looking_at = 0
             still_need = self.max_bottom_frontier_size - len(sub_frontier_ii)
@@ -644,6 +651,9 @@ class MinimalSubsetsFromBottomWithCost(MinimalSubsetsFromBottom):
                 else:
                     self.move_bottom_frontier()
             if not self.found_on_bottom_frontier:
+#                if self.has_printed_first_skipped:
+#                    print
+#                    sys.stdout.flush()
                 raise StopIteration()
         return self.found_on_bottom_frontier.pop()
 
@@ -686,6 +696,7 @@ def create_parser():
     """Return command-line parser."""
     parser = argparse.ArgumentParser()
     parser.add_argument('--version', action='version',
+                        
                         version='%(prog)s ' + __version__)
     parser.add_argument('--skipcols', type=int, default=2,
                         help='number of columns to skip before assuming '

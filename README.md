@@ -1,61 +1,43 @@
 #contrastive-symmetry
 
-Compute economy, balance, and minimal pairs for naturally occurring 
-inventories, as described in Dunbar and Dupoux (in preparation, draft
-included under docs/).
+New Readme. Keeping a list of all the files we need here so that we can
+start fresh.
 
-##Directory structure
+##Files
 
-**analysis/** R markdown files to generate the analysis and all the
-plots in the paper
+* **README.md** - this file 
 
-**stats/** pre-computed raw statistics, computed from data/ and specs/
+* **Makefile** - generate inventory specifications and statistics
 
-* *\*\_minfeat* minimum number of contrastive features by inventory
-* *\*\_pair_counts* number of minimal pairs by feature by specification by
-inventory
-* *\*\_pair_counts_med* number of minimal pairs by feature by inventory,
-median over all specifications
-* *\*\_size* size of inventory
-* *\*\_tbalance* number of plus, minus, and absolute value of difference by feature
-by inventory
+* **analysis.Rmd** - analysis document containing the plots and tables for the
+paper
+* **analysis/file_locations.R** - supplement to analysis.Rmd listing filenames
+* **analysis/plot_constant.R** - supplement to analysis.Rmd setting up
+constants used for plotting
+* **analysis/read_input.R** - supplement to analysis.Rmd reading input
 
-**scripts/** for generating statistics
+* **src/R/util.R** - functions for working with the output of dlply
+* **src/R/read.R** - functions for reading the statistics files
+* **src/R/plot.R** - functions for plotting
+* **src/R/auc.R** - functions for computing AUC
 
-**data/** inventory tables
 
-**specs/** pre-computed minimal feature subsets by inventory
+##Required packages
 
-**src/analysis** R code for doing analysis
+###R packages
 
-**src/contrastive-symmetry** Python code for generating specs and stats
+* plyr
+* ggplot2
+* dplyr
+* pryr
+* magrittr ??
+* cowplot ??
+* foreach ??
+* doParallel
 
-##To generate random inventories
+###Python modules
 
-**FIXME DOCS**
+* joblib
+* numpy
+* pandas
 
-##To generate specs and all stats 
-
-bash scripts/do\_all\_stats.sh
-
-##To just generate specs/ (minimal feature subsets)
-
-bash scripts/specs.sh [INVENTORY]
-
-(where data/[INVENTORY].csv is a file containing the inventories to be analyzed)
-
-##To just generate \_size files
-
-bash scripts/size.sh [INVENTORY]
-
-##To just generate \_minfeat files
-
-bash scripts/minfeat.sh [INVENTORY]
-
-##To just generate \_tbalance files
-
-bash scripts/tbalance.sh [INVENTORY]
-
-##To just generate \_pair\_counts and \_pair\_counts\_med files
-
-bash scripts/pair_counts.sh [INVENTORY]

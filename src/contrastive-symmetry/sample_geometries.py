@@ -166,10 +166,10 @@ def init_output(fn, print_shape):
     else:
         hf = sys.stdout
     if print_shape:
-        print('size, nfeat, sum_pairs, sum_ssegs, pairs_repr, '
+        print('size, nfeat, sum_fnpairs, sum_fbalance, pairs_repr, '
               'ssegs_repr, shape_repr', file=hf)
     else:
-        print('size, nfeat, sum_pairs, sum_ssegs, pairs_repr, '
+        print('size, nfeat, sum_fnpairs, sum_fbalance, pairs_repr, '
               'ssegs_repr', file=hf)
     hf.flush()
     return hf

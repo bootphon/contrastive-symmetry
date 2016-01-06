@@ -1,0 +1,15 @@
+#!/usr/bin/Rscript --vanilla
+
+library(plyr)
+source("src/R/stats.R")
+
+args <- commandArgs(TRUE)
+
+input_csv <- args[1]
+output_csv <- args[2]
+
+input <- read.csv(input_csv)
+result <- ddply(input, .(language), size)
+write.csv(result, file=output_csv, row.names=F)
+
+
