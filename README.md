@@ -91,6 +91,11 @@ basically forever. You can reduce the values of
 you will lose inventories (and in fact you should probably increase these
 values) at larger values of k.
 
+This list is going to be way larger than you need, because
+size, nfeat, sum\_fnpairs, and sum\_fbalance are far from complete in
+terms of defining a whole distance matrix. So you can use the script
+scripts/unique_geometries.sh to reduce the list substantially.
+
 How to print basic typological statistics (inventory size, feature probability
 of +, segment probability):
 
