@@ -8,7 +8,7 @@ in the repository and need to be computed.
 
 The random comparison inventories and the extra geometries, on the
 other hand, are included (under data/). The code is there to
-re-generate them, but it is poorly documented.
+re-generate them, but is only briefly documented below.
 
 ##Requirements
 
