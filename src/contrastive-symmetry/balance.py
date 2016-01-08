@@ -13,7 +13,7 @@ import os
 from joblib.parallel import delayed, Parallel
 
 
-__version__ = '0.0.1'
+__version__ = '1.0'
 
 def balance(n_minus, n_plus):
     if n_minus == 0 or n_plus == 0:

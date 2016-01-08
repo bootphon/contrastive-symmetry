@@ -11,7 +11,7 @@ from inventory_io import read_inventories, default_feature_value_npf
 from inventory_util import write_freq_table, add_all_to_counts, add_to_counts,\
     write_value_freq_table, add_all_to_value_table
 
-__version__ = '0.0.1'
+__version__ = '1.0'
 
 def read_sizes(fn):
     raw_table = pd.read_csv(fn, dtype=np.str)

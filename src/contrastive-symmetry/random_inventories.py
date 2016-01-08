@@ -10,8 +10,7 @@ from inventory_io import which_binary
 from joblib import Parallel, delayed
 from joblib.memory import Memory
 
-
-__version__ = '0.0.1'
+__version__ = '1.0'
 
 MATRIX_SUFFIX = "_random_matrix.csv"
 SEGMENT_SUFFIX = "_random_segment.csv"

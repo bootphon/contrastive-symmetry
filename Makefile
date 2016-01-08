@@ -1,15 +1,19 @@
 # Makefile for specs and stats (very sloppy)
 
+#STUDY_1_ONLY=TRUE
+NJOBS_PYTHON=4
 DIR_CHECK = mkdir -p
 SIZE = Rscript --vanilla scripts/size.Rscript
-#MINFEAT = Rscript --vanilla scripts/minfeat.Rscript
-FBALANCE = python src/contrastive-symmetry/balance.py --max-dim=0 --jobs=4
-FNPAIRS = python src/contrastive-symmetry/pair_counts.py --jobs=7
+FBALANCE = python src/contrastive-symmetry/balance.py --max-dim=0 \
+					 --jobs=$(NJOBS_PYTHON)
+FNPAIRS = python src/contrastive-symmetry/pair_counts.py \
+					--jobs=$(NJOBS_PYTHON)
 SUM_FBALANCE = Rscript --vanilla scripts/sum_fbalance.Rscript
 SUM_FNPAIRS = Rscript --vanilla scripts/sum_fnpairs.Rscript
 AGGREGATE = bash scripts/aggregate_csv.sh
 SPECS = python src/contrastive-symmetry/subset.py --binary \
-				--max-frontier-expansion-cost=30000 --jobs=4 
+				--max-frontier-expansion-cost=30000 \
+				--jobs=$(NJOBS_PYTHON)
 
 all: stats
 clean: clean-specs clean-stats
@@ -17,6 +21,12 @@ clean: clean-specs clean-stats
 # Specifications
 
 specs: specs/whole specs/cons specs/stop specs/vowel
+ifdef STUDY_1_ONLY
+specs/whole: specs/whole/nat/all.csv specs/whole/ctrl/all.csv
+specs/cons: specs/cons/nat/all.csv specs/cons/ctrl/all.csv
+specs/stop: specs/stop/nat/all.csv specs/stop/ctrl/all.csv 
+specs/vowel: specs/vowel/nat/all.csv specs/vowel/ctrl/all.csv 
+else
 specs/whole: specs/whole/nat/all.csv specs/whole/ctrl/all.csv \
 						 specs/whole/wtd/all.csv specs/whole/unif/all.csv
 specs/cons: specs/cons/nat/all.csv specs/cons/ctrl/all.csv \
@@ -25,6 +35,7 @@ specs/stop: specs/stop/nat/all.csv specs/stop/ctrl/all.csv \
 						 specs/stop/wtd/all.csv specs/stop/unif/all.csv
 specs/vowel: specs/vowel/nat/all.csv specs/vowel/ctrl/all.csv \
 						 specs/vowel/wtd/all.csv specs/vowel/unif/all.csv
+endif
 
 specs/whole/nat/all.csv:
 	$(SPECS) data/whole/nat/all.csv specs/whole/nat/by_language
@@ -127,79 +138,14 @@ clean-specs-vowel-unif:
 
 stats: stats/size stats/sum_fbalance stats/sum_fnpairs
 
-#stats/minfeat: stats/minfeat/whole stats/minfeat/cons stats/minfeat/stop \
-#							 stats/minfeat/vowel 
-#stats/minfeat/whole: stats/minfeat/whole/nat/all.csv \
-#										 stats/minfeat/whole/ctrl/all.csv \
-#										 stats/minfeat/whole/wtd/all.csv \
-# 									   stats/minfeat/whole/unif/all.csv
-#stats/minfeat/cons: stats/minfeat/cons/nat/all.csv \
-#										 stats/minfeat/cons/ctrl/all.csv \
-#										 stats/minfeat/cons/wtd/all.csv \
-# 									   stats/minfeat/cons/unif/all.csv
-#stats/minfeat/stop: stats/minfeat/stop/nat/all.csv \
-#										 stats/minfeat/stop/ctrl/all.csv \
-#										 stats/minfeat/stop/wtd/all.csv \
-# 									   stats/minfeat/stop/unif/all.csv
-#stats/minfeat/vowel: stats/minfeat/vowel/nat/all.csv \
-#										 stats/minfeat/vowel/ctrl/all.csv \
-#										 stats/minfeat/vowel/wtd/all.csv \
-# 									   stats/minfeat/vowel/unif/all.csv
-#
-#stats/minfeat/whole/nat/all.csv: specs/whole/nat/all.csv
-#	$(DIR_CHECK) stats/minfeat/whole/nat
-#	$(MINFEAT) specs/whole/nat/all.csv stats/minfeat/whole/nat/all.csv
-#stats/minfeat/whole/ctrl/all.csv: specs/whole/ctrl/all.csv
-#	$(DIR_CHECK) stats/minfeat/whole/ctrl
-#	$(MINFEAT) specs/whole/ctrl/all.csv stats/minfeat/whole/ctrl/all.csv
-#stats/minfeat/whole/unif/all.csv: specs/whole/unif/all.csv
-#	$(DIR_CHECK) stats/minfeat/whole/unif
-#	$(MINFEAT) specs/whole/unif/all.csv stats/minfeat/whole/unif/all.csv
-#stats/minfeat/whole/wtd/all.csv: specs/whole/wtd/all.csv
-#	$(DIR_CHECK) stats/minfeat/whole/wtd
-#	$(MINFEAT) specs/whole/wtd/all.csv stats/minfeat/whole/wtd/all.csv
-#
-#stats/minfeat/cons/nat/all.csv: specs/cons/nat/all.csv
-#	$(DIR_CHECK) stats/minfeat/cons/nat
-#	$(MINFEAT) specs/cons/nat/all.csv stats/minfeat/cons/nat/all.csv
-#stats/minfeat/cons/ctrl/all.csv: specs/cons/ctrl/all.csv
-#	$(DIR_CHECK) stats/minfeat/cons/ctrl
-#	$(MINFEAT) specs/cons/ctrl/all.csv stats/minfeat/cons/ctrl/all.csv
-#stats/minfeat/cons/unif/all.csv: specs/cons/unif/all.csv
-#	$(DIR_CHECK) stats/minfeat/cons/unif
-#	$(MINFEAT) specs/cons/unif/all.csv stats/minfeat/cons/unif/all.csv
-#stats/minfeat/cons/wtd/all.csv: specs/cons/wtd/all.csv
-#	$(DIR_CHECK) stats/minfeat/cons/wtd
-#	$(MINFEAT) specs/cons/wtd/all.csv stats/minfeat/cons/wtd/all.csv
-#
-#stats/minfeat/stop/nat/all.csv: specs/stop/nat/all.csv
-#	$(DIR_CHECK) stats/minfeat/stop/nat
-#	$(MINFEAT) specs/stop/nat/all.csv stats/minfeat/stop/nat/all.csv
-#stats/minfeat/stop/ctrl/all.csv: specs/stop/ctrl/all.csv
-#	$(DIR_CHECK) stats/minfeat/stop/ctrl
-#	$(MINFEAT) specs/stop/ctrl/all.csv stats/minfeat/stop/ctrl/all.csv
-#stats/minfeat/stop/unif/all.csv: specs/stop/unif/all.csv
-#	$(DIR_CHECK) stats/minfeat/stop/unif
-#	$(MINFEAT) specs/stop/unif/all.csv stats/minfeat/stop/unif/all.csv
-#stats/minfeat/stop/wtd/all.csv: specs/stop/wtd/all.csv
-#	$(DIR_CHECK) stats/minfeat/stop/wtd
-#	$(MINFEAT) specs/stop/wtd/all.csv stats/minfeat/stop/wtd/all.csv
-#
-#stats/minfeat/vowel/nat/all.csv: specs/vowel/nat/all.csv
-#	$(DIR_CHECK) stats/minfeat/vowel/nat
-#	$(MINFEAT) specs/vowel/nat/all.csv stats/minfeat/vowel/nat/all.csv
-#stats/minfeat/vowel/ctrl/all.csv: specs/vowel/ctrl/all.csv
-#	$(DIR_CHECK) stats/minfeat/vowel/ctrl
-#	$(MINFEAT) specs/vowel/ctrl/all.csv stats/minfeat/vowel/ctrl/all.csv
-#stats/minfeat/vowel/unif/all.csv: specs/vowel/unif/all.csv
-#	$(DIR_CHECK) stats/minfeat/vowel/unif
-#	$(MINFEAT) specs/vowel/unif/all.csv stats/minfeat/vowel/unif/all.csv
-#stats/minfeat/vowel/wtd/all.csv: specs/vowel/wtd/all.csv
-#	$(DIR_CHECK) stats/minfeat/vowel/wtd
-#	$(MINFEAT) specs/vowel/wtd/all.csv stats/minfeat/vowel/wtd/all.csv
-
 stats/size: stats/size/whole stats/size/cons stats/size/stop \
 							 stats/size/vowel 
+ifdef STUDY_1_ONLY
+stats/size/whole: stats/size/whole/nat/all.csv stats/size/whole/ctrl/all.csv
+stats/size/cons: stats/size/cons/nat/all.csv stats/size/cons/ctrl/all.csv
+stats/size/stop: stats/size/stop/nat/all.csv stats/size/stop/ctrl/all.csv
+stats/size/vowel: stats/size/vowel/nat/all.csv stats/size/vowel/ctrl/all.csv
+else
 stats/size/whole: stats/size/whole/nat/all.csv \
 										 stats/size/whole/ctrl/all.csv \
 										 stats/size/whole/wtd/all.csv \
@@ -216,6 +162,7 @@ stats/size/vowel: stats/size/vowel/nat/all.csv \
 										 stats/size/vowel/ctrl/all.csv \
 										 stats/size/vowel/wtd/all.csv \
  									   stats/size/vowel/unif/all.csv
+endif
 
 stats/size/whole/nat/all.csv: 
 	$(DIR_CHECK) stats/size/whole/nat

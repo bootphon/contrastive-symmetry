@@ -11,7 +11,7 @@ from joblib.parallel import delayed, Parallel
 from partition import to_row_partition
 from util import get_cols_except, spec_id
 
-__version__ = '0.0.1'
+__version__ = '1.0'
 
 def minimal_count(table, features, on):
     if table.shape[0] == 2 and len(features) == 1:

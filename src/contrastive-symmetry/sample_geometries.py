@@ -15,7 +15,7 @@ from geometry import scaffolding_size, all_scaffolds, seg_to_int, int_to_seg,\
 import random
 import numpy as np
 
-__version__ = '0.0.1'
+__version__ = '1.0'
 
 def balance_dim(v):
     c0, c1 = binary_counts(v)
@@ -183,12 +183,13 @@ def parse_args(arguments):
                         'inventory shape', action='store_true')
     parser.add_argument('--max-tries', help='maximum number of '
                         'times to try a sampling move before '
-                        'giving up (default: 100)', default=100,
-                        type=int)
+                        'giving up (default: 1000000000)',
+                        default=1000000000, type=int)
     parser.add_argument('--max-samples',
                         help='maximum number of sample inventories '
                         'to generate per unique (k) scaffolding '
-                        '(default: 100)', default=100,
+                        '(default: 100000000)',
+                        default=100000000,
                         type=int)
     parser.add_argument('--scaffold-expansion-limit',
                         help='scaffold expansion limit '

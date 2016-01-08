@@ -5,14 +5,13 @@ output: html_document
 
 ```{r init, include=FALSE, cache=FALSE}
 library(reshape2)
-library(plyr)
-library(ggplot2)
-library(dplyr)
 library(pryr)
-library(magrittr)
-library(foreach)
+library(plyr)
+library(dplyr)
 library(doParallel)
 library(parallel)
+
+library(ggplot2)
 library(xtable)
 
 source("src/R/util.R")
@@ -101,6 +100,8 @@ d_means <- ddply(inv_stats_melted, .(segment_type, inventory_type, measure_type)
                  summarize, mean_measure=mean(Measure))
 d_random <- filter(d_means,
                    inventory_type %in% c("Control", "Uniform", "Weighted"))
+d_random$inventory_type <- factor(d_random$inventory_type,
+                                  levels=c("Uniform", "Weighted", "Control"))
 d_natural <- filter(d_means, inventory_type=="Natural")
 p <- ggplot(d_random, aes(y=mean_measure, x=0, fill=inventory_type)) +
   geom_bar(position="dodge", stat="identity", colour="black") +

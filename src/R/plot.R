@@ -17,7 +17,8 @@ plot_prevalence <- function(d, var_measure, var_group,
                             line_width=0.8,
                             ncol=NULL,
                             bins=31,
-                            initial_plot=NULL) {
+                            initial_plot=NULL,
+                            y_type="count") {
   d <- d[!is.na(d[[var_measure]]),]
   binwidth <- (max(d[[var_measure]]) - min(d[[var_measure]]))/bins
   if (is.null(initial_plot)) {
@@ -25,7 +26,9 @@ plot_prevalence <- function(d, var_measure, var_group,
   } else {
     p <- initial_plot
   }
-  p <- p + stat_bin(aes(y=..ndensity..), binwidth=binwidth,
+  
+  y_str_sbin <- paste0("..", y_type, "..")
+  p <- p + stat_bin(aes_string(y=y_str_sbin), binwidth=binwidth,
                     position='identity', geom="bar", lwd=0,
                     alpha=0.4, origin=(min(d[[var_measure]])-binwidth/2.0)) +
            aes_string(fill=var_group) +
@@ -33,25 +36,31 @@ plot_prevalence <- function(d, var_measure, var_group,
                       breaks=unique(d[[var_group]])) +
            scale_colour_manual(values=colour_palette,
                                name=var_group_name, breaks=unique(d[[var_group]]))     
-  p <- p + stat_bin(aes(y=..ndensity..), binwidth=binwidth,
+  p <- p + stat_bin(aes_string(y=y_str_sbin), binwidth=binwidth,
                     position='identity', geom="line", colour="black",
                     lwd=line_width,
                     origin=(min(d[[var_measure]])-binwidth/2.0))
-  p <- p + stat_bin(aes(y=..ndensity..), binwidth=binwidth,
+  p <- p + stat_bin(aes_string(y=y_str_sbin), binwidth=binwidth,
                     position='identity', geom="line", 
                     lwd=line_width*0.4,
                     origin=(min(d[[var_measure]])-binwidth/2.0))  
-  p <- p + stat_bin(aes(y=..ndensity..), binwidth=binwidth,
+  p <- p + stat_bin(aes_string(y=y_str_sbin), binwidth=binwidth,
                     position='identity', geom="point", colour="black",
                     size=point_size*1.7,
                     origin=(min(d[[var_measure]])-binwidth/2.0))
-  p <- p + stat_bin(aes(y=..ndensity..), binwidth=binwidth,
+  p <- p + stat_bin(aes_string(y=y_str_sbin), binwidth=binwidth,
                     position='identity', geom="point", size=point_size*1.2,
                     origin=(min(d[[var_measure]])-binwidth/2.0)) +
            aes_string(colour=var_group, shape=var_group) +
            scale_shape(name=var_group_name, breaks=unique(d[[var_group]]))
-  p <- p + 
-    xlab(var_measure_name) + ylab("Normalized Empirical Density")
+  p <- p + xlab(var_measure_name)
+  if (y_type == "ndensity") {
+    p <- p + ylab("Normalized Empirical Density") 
+  } else if (y_type == "density") {
+    p <- p + ylab("Empirical Density") 
+  } else if (y_type == "count") {
+    p <- p + ylab("Count") 
+  }
   return(p)
 }
 
@@ -79,6 +88,6 @@ plot_prevalence_with_mean_facet <- function(d, var_measure, var_group,
                        point_size=point_size, 
                        line_width=hist_lwd, bins=bins,
                        initial_plot=p)
-  r <- q + facet_wrap(formula(paste0("~ ", var_facet)))
+  r <- q + facet_wrap(formula(paste0("~ ", var_facet)), scales="free_y")
   return(r)
 }

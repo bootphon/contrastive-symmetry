@@ -10,20 +10,23 @@ positive_prediction_stats_linear_classifier_by_rank <- function(x, y_true, exten
   n <- length(x)
   y_true_bool <- binary_factor_as_logical(y_true)
   y_true_bool_ordered <- y_true_bool[order(x)]
-  tp_by_rank <- cumsum(rev(y_true_bool_ordered))
-  fp_by_rank <- 1:n - tp_by_rank
+  descending_tp <- cumsum(rev(y_true_bool_ordered))
+  descending_fp <- 1:n - descending_tp
   all_pos <- sum(y_true_bool_ordered)
   all_neg <- n - all_pos
   if (all_pos==0) {
-    tpr_by_rank <- rep(0., n)
+    descending_tpr <- rep(0., n)
   } else {
-    tpr_by_rank <- tp_by_rank/all_pos
+    descending_tpr <- descending_tp/all_pos
   }
   if (all_neg==0) {
-    fpr_by_rank <- rep(1., n)
+    descending_fpr <- rep(1., n)
   } else {
-    fpr_by_rank <- fp_by_rank/all_neg
+    descending_fpr <- descending_fp/all_neg
   }
+  last_entry <- rev(!duplicated(x[order(x)]))
+  tpr_by_rank <- descending_tpr[last_entry]
+  fpr_by_rank <- descending_fpr[last_entry]
   if (extend) {
     tpr_by_rank <- c(0.0, tpr_by_rank)
     fpr_by_rank <- c(0.0, fpr_by_rank)
@@ -46,17 +49,13 @@ pred_stats <- function(sim, same) {
 }
 
 
-integrate_finite <- function(x, y, side="right") {
+integrate_finite <- function(x, y) {
   x <- x[!is.na(x) & !is.na(y)]
   y <- y[!is.na(x) & !is.na(y)]
-  x_vals <- sort(unique(x))
+  x_vals <- x[order(x)]
+  y_vals <- y[order(x)]
   deltas <- x_vals[2:length(x_vals)] - x_vals[1:(length(x_vals) - 1)]
-  heights <- sapply(x_vals, function(x_val) max(y[x == x_val])) # could do this faster
-  if (side == "right") {
-    heights <- heights[1:(length(x_vals) - 1)]
-  } else {
-    heights <- heights[2:length(x_vals)]
-  }
+  heights <- (y_vals[2:length(y_vals)] + y_vals[1:(length(y_vals) - 1)])/2.
   return(sum(heights*deltas))
 }
 
@@ -83,9 +82,5 @@ auc_by <- function(d, measure, classes, goldleft) {
   if (goldleft != levels(classes_f)[1]) {
     classes_f <- relevel(classes_f, goldleft)
   }
-  pred_stats(d[[measure]], classes_f) %$% auc(tpr, fpr)
-}
-
-auc_by_inventory_type <- function(d, measure) {
-  auc_by(d, measure, "inventory_type", "Random")
+  return(with(pred_stats(d[[measure]], classes_f), auc(tpr, fpr)))
 }

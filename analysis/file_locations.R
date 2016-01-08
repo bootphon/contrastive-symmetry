@@ -1,5 +1,6 @@
-SEGMENT_TYPE <- c(Whole="whole", Consonant="cons", Stop="stop", Vowel="vowel")
 INVENTORY_TYPE <- c(Natural="nat",Control="ctrl",Weighted="wtd",Uniform="unif")
+#INVENTORY_TYPE <- c(Natural="nat",Control="ctrl")
+SEGMENT_TYPE <- c(Whole="whole", Consonant="cons", Stop="stop", Vowel="vowel")
 
 SIZE_FILENAME_TABLE <- ldply(names(SEGMENT_TYPE),
                              function(st)
