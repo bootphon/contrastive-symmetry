@@ -1,124 +1,46 @@
 #contrastive-symmetry
 
-Code to replicate the results in Dunbar and Dupoux (submitted). The analysis
-is done in an Rmarkdown file, which in turn depends on the size,
-sum of number of minimal pairs (sum_fnpairs), and sum of differences
-(sum_fbalance) statistics being pre-calculated. These are not included
-in the repository and need to be computed.
+All the inventory statistics reported in [Dunbar and Dupoux 2016, "Geometric constraints on human speech sound inventories"](http://journal.frontiersin.org/article/10.3389/fpsyg.2016.01061/full).
 
-The random comparison inventories and the extra geometries, on the
-other hand, are included (under data/). The code is there to
-re-generate them, but is only briefly documented below.
+What's here:
+
+* **summary.feather:** median Econ, Loc, and Glob for all the natural and random inventories reported in the paper
+* **inventories.feather.gz:** inventories from P-Base, plus all the sets of random inventories, encoded in the binary feature system described in the paper (ungzip to use: **feather** can't read gzipped files)
+* **geoms.feather.gz:** extra geometries as described in the paper (ungzip to use: **feather** can't read gzipped files)
+* **create_statistics.R:** a script which re-runs all the statistics; this will take a very long time (days) - don't run this on your laptop; it won't be an exact replication, because (unfortunately) a bug in an earlier version of the code that subsamples contrastive specifications meant that it never used the random seed - however, the specifications used in the paper are still available (see below)
+
+Large files that can't be put in to a git repository that contain the intermediate steps (contrastive specifications, $N_{mp}$, $N_{im}$ - you can download these (and ungzip them) to re-run just the last step of the statistics (calculation of Econ, Loc, and Glob), skipping over these steps:
+
+* **[http://ewan.website/specs.feather.gz](specs.feather.gz)**: all contrastive specifications
+* **[http://ewan.website/nmpairs.feather.gz](nmpairs.feather.gz)**: $N_{mp}$
+* **[http://ewan.website/nimbalance.feather.gz](nimbalance.feather.gz)**: $N_{im}$
+
+What's missing (but which will appear here in the near future):
+
+* Comparisons using AUC as reported in the paper
+* Plots generated in the paper
+* Code for generating the extra geometries in **geoms.feather**
+* Analysis of the Mackie/Mielke/deBoer inventories mentioned in the paper
+* Code for generating the random control inventories
 
 ##Requirements
 
-###R packages
+* feather
 
-* ggplot2
-* pryr
-* plyr
+##Requirements if you are re-generating the statistics
+
+* inventrry
+
+library(devtools)
+install_github("ewan/inventrry", subdir="inventrry")
+
+The **inventrry** package requires Python, and uses the **PythonInR** package, which might require a bit of non-trivial setup before you can get it to run, if you are not using the default Python installation on your system. See the [README for the **inventrry** package](https://github.com/ewan/inventrry) for details. After that setup is done, you will want to uncomment the line in `create_statistics.R` which sets the PYTHONHOME environment variable before trying to load **inventrry**.
+
+* readr
 * dplyr
+* tidyr
+* purrr
+* foreach
 * doParallel
-* parallel
-* xtable
-
-###Python modules
-
-* joblib
-* numpy
-* pandas
-
-For sampling extra geometries:
-
-* python-igraph (from http://igraph.org/python)
-
-##Requirements
-
-How to replicate our analysis:
-
-* To generate the specifications and the statistics, do 'make'
-
-This will take some time. If you want to speed
-it up, and you have more than 4 cores at your disposal, you can increase
-the number of cores Python uses (by default, 4: change NJOBS_PYTHON in
-the header of the Makefile). Alternatively, since the main culprits
-are the uniform inventories (they have a lot of possible specifications)
-if you are only interested in Study 1, uncomment the STUDY\_1\_ONLY
-flag in the Makefile, and then, in analysis/file_locations.R,
-comment out the first line and uncomment the second version of
-INVENTORY_TYPE, just below, that only has Natural and Control. The
-Rmarkdown will still try and create the figure from Study 2 and will
-crash there, so just comment out the code in this chunk.
-
-* To generate the analysis, run knitr on analysis.Rmd
-
-This will also take some time, (compiling the statistics, constructing
-the AUC bootstraps), but not hours unless you are on a very slow machine.
-After the first time it runs, the results will be cached, so should
-be almost instant unless you need to re-run either
-of these two steps (in which case you should
-just delete the relevant cache files from analysis_cache).
-
-How to generate random control inventories size-matched and segment
-frequency-matched to one of the sets of inventories (e.g., whole):
-
-* python src/contrastive-symmetry/random_inventories.py --binary-segment
-data/SET/nat/all.csv
-  
-How to generate uniform random inventories size-matched 
-to one of the sets of inventories:
-
-* python src/contrastive-symmetry/random_inventories.py --matrix
-data/SET/nat/all.csv
-
-How to generate random inventories size-matched and feature frequency-weighted
-to one of the sets of inventories:
-
-* python src/contrastive-symmetry/random_inventories.py --feature
-data/SET/nat/all.csv
-
-How to generate extra geometries of dimension k, size n:
-
-* python src/contrastive-symmetry/sample_geometries.py --use-spectrum N K
-OUTPUT_FILE
-
-This will print a large sample of the geometries of dimension k and
-size n that are distinct in their distance matrices. It will is
-not guaranteed to a good sample in any way.
-Still, for large values of k (beyond about 8) this will run
-basically forever. You can reduce the values of
---max-tries and --max-samples if you want the thing to finish, but
-you will lose inventories (and in fact you should probably increase these
-values) at larger values of k.
-
-This list is going to be way larger than you need, because
-size, nfeat, sum\_fnpairs, and sum\_fbalance are far from complete in
-terms of defining a whole distance matrix. So you can use the script
-scripts/unique_geometries.sh to reduce the list substantially.
-
-How to print basic typological statistics (inventory size, feature probability
-of +, segment probability):
-
-* python src/contrastive-symmetry/basic_stats.py size data/SET/TYPE/all.csv
-* python src/contrastive-symmetry/basic_stats.py feature data/SET/TYPE/all.csv
-* python src/contrastive-symmetry/basic_stats.py segment data/SET/TYPE/all.csv
-
-##Files
-
-* **README.md** - this file 
-
-* **Makefile** - generate inventory specifications and statistics
-
-* **analysis.Rmd** - analysis document containing the plots and tables for the
-paper
-* **analysis/** - R code for the analysis
-
-* **src/R/** - basic R code
-* **src/contrastive-symmetry** - Python code for calculating fnpairs and
-fbalance statistics, for generating inventory specifications, and for
-generating random inventories and extra geometries (although these last
-are already included in the repository)
-* **scripts/** - Scripts for compiling fnpairs/balance into
-sum\_fnpairs/sum\_fbalance
 
 
