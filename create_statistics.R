@@ -189,5 +189,6 @@ inventories_summ <- inventories %>%
          loc=median(loc, na.rm=T),
          glob=median(glob, na.rm=T)) %>%
   ungroup
+
 write_feather(inventories_summ, "summary.feather")
 
