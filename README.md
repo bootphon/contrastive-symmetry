@@ -26,13 +26,21 @@ What's missing (but which will appear here in the near future):
 ##Requirements
 
 * feather
+* rocauc
+
+To install:
+
+     library(devtools)
+     install_github("ewan/rocauc", subdir="rocauc")
 
 ##Requirements if you are re-generating the statistics
 
 * inventrry
 
-library(devtools)
-install_github("ewan/inventrry", subdir="inventrry")
+To install:
+
+     library(devtools)
+     install_github("ewan/inventrry", subdir="inventrry")
 
 The **inventrry** package requires Python, and uses the **PythonInR** package, which might require a bit of non-trivial setup before you can get it to run, if you are not using the default Python installation on your system. See the [README for the **inventrry** package](https://github.com/ewan/inventrry) for details. After that setup is done, you will want to uncomment the line in `create_statistics.R` which sets the PYTHONHOME environment variable before trying to load **inventrry**.
 
