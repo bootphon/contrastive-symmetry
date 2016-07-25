@@ -11,9 +11,9 @@ What's here:
 
 Large files that can't be put in to a git repository that contain the intermediate steps (contrastive specifications, $N_{mp}$, $N_{im}$ - you can download these (and ungzip them) to re-run just the last step of the statistics (calculation of Econ, Loc, and Glob), skipping over these steps:
 
-* **[http://ewan.website/specs.feather.gz](specs.feather.gz)**: all contrastive specifications
-* **[http://ewan.website/nmpairs.feather.gz](nmpairs.feather.gz)**: $N_{mp}$
-* **[http://ewan.website/nimbalance.feather.gz](nimbalance.feather.gz)**: $N_{im}$
+* **[specs.feather.gz](http://ewan.website/specs.feather.gz)**: all contrastive specifications
+* **[nmpairs.feather.gz](http://ewan.website/nmpairs.feather.gz)**: $N_{mp}$
+* **[nimbalance.feather.gz](http://ewan.website/nimbalance.feather.gz)**: $N_{im}$
 
 What's missing (but which will appear here in the near future):
 
