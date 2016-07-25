@@ -9,7 +9,7 @@ What's here:
 * **geoms.feather.gz:** extra geometries as described in the paper (ungzip to use: **feather** can't read gzipped files)
 * **create_statistics.R:** a script which re-runs all the statistics; this will take a very long time (days) - don't run this on your laptop; it won't be an exact replication, because (unfortunately) a bug in an earlier version of the code that subsamples contrastive specifications meant that it never used the random seed - however, the specifications used in the paper are still available (see below)
 
-Large files that can't be put in to a git repository that contain the intermediate steps (contrastive specifications, $N_{mp}$, $N_{im}$ - you can download these (and ungzip them) to re-run just the last step of the statistics (calculation of Econ, Loc, and Glob), skipping over these steps:
+Large files that can't be put in to a git repository that contain the intermediate steps (contrastive specifications, $N_{mp}$, $N_{im}$) - you can download these (and ungzip them) to re-run just the last step of the statistics (calculation of Econ, Loc, and Glob), skipping over these steps:
 
 * **[specs.feather.gz](http://ewan.website/specs.feather.gz)**: all contrastive specifications
 * **[nmpairs.feather.gz](http://ewan.website/nmpairs.feather.gz)**: $N_{mp}$
