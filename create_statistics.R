@@ -38,7 +38,7 @@ if (file.exists("specs.feather") & !REGEN_SPECS) {
   specs_all <- inventories_all %>%
     mutate(specs=foreach(f=features) %dopar% specs(f, 30000, abs(sum(f)))) %>%
     select(-features) %>%
-    filter(!is_empty(specs)) %>%
+    filter(purrr::map_lgl(specs, ~ !is_empty(.))) %>%
     mutate(specs=purrr::map(
       specs,
       ~ data_frame(spec_id=paste0("Spec", 1:length(.)), spec=.)
