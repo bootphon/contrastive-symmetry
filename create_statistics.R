@@ -129,7 +129,7 @@ if (file.exists("nmpairs.feather") & !REGEN_NMPAIRS) {
     ))
   inventories %>%
     select(-features, -size) %>%
-    mutate(specs=(specs %>% select(-spec, -nfeat))) %>%
+    mutate(specs=map(specs, ~ select(., -spec, -nfeat))) %>%
     unnest(specs) %>%
     write_feather("nmpairs.feather")
 }
@@ -153,7 +153,7 @@ if (file.exists("nimbalance.feather") & !REGEN_NIMBALANCE) {
     ))
   inventories %>%
     select(-features, -size) %>%
-    mutate(specs=(specs %>% specs(-spec, -nfeat))) %>%
+    mutate(specs=map(specs, ~ select(., -spec, -nfeat))) %>%
     unnest(specs) %>%
     write_feather("nimbalance.feather")
 }
