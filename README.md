@@ -1,13 +1,15 @@
 #contrastive-symmetry
 
-All the inventory statistics reported in [Dunbar and Dupoux 2016, "Geometric constraints on human speech sound inventories"](http://journal.frontiersin.org/article/10.3389/fpsyg.2016.01061/full).
+All the inventory statistics reported in [Dunbar and Dupoux 2016, "Geometric constraints on human speech sound inventories"](http://journal.frontiersin.org/article/10.3389/fpsyg.2016.01061/full), with a minor correction (see below).
 
 What's here:
 
-* **summary.feather:** median Econ, Loc, and Glob for all the natural and random inventories reported in the paper
+* **summary.feather:** median Econ, Loc, and Glob for all the natural and random inventories reported in the paper; the sample is corrected slightly: due to a minor error which did not affect the results qualitatively, the sample of random inventories used in the paper was incorrect, and has been re-done here. All numbers in Table 1 are within 0.02 of those reported in the paper, with the exception of Loc values for Whole inventories, which are off by slightly more.
+* **paper_stats.R:** a script that reads **summary.feather** and outputs Table 1 and Figure 6 from the paper
+
 * **inventories.feather.gz:** inventories from P-Base, plus all the sets of random inventories, encoded in the binary feature system described in the paper (ungzip to use: **feather** can't read gzipped files)
 * **geoms.feather.gz:** extra geometries as described in the paper (ungzip to use: **feather** can't read gzipped files)
-* **create_statistics.R:** a script which re-runs all the statistics; this will take a very long time (days) - don't run this on your laptop; it won't be an exact replication, because (unfortunately) a bug in an earlier version of the code that subsamples contrastive specifications meant that it never used the random seed - however, the specifications used in the paper are still available (see below)
+* **create_statistics.R:** a script which re-generates **summary.feather** on the basis of **inventory.feather** and **geoms.feather**; this will take a very long time (days) - don't run this on your laptop; it won't be an exact replication, because (unfortunately) a bug in an earlier version of the code that subsamples contrastive specifications meant that it never used the random seed - however, the specifications used in the paper are still available (see below)
 
 Large files that can't be put in to a git repository that contain the intermediate steps (contrastive specifications, $N_{mp}$, $N_{im}$) - you can download these (and ungzip them) to re-run just the last step of the statistics (calculation of Econ, Loc, and Glob), skipping over these steps:
 
