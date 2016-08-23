@@ -11,6 +11,13 @@ registerDoParallel(cores=4)
 
 inventories_summ <- read_feather("summary.feather")
 
+# Text: number of omissions due to fully determined statistics
+
+omissions <- inventories_summ %>% 
+  group_by(segment_type, inventory_type) %>%
+  summarize(nna_loc=sum(is.na(loc)), nna_glob=sum(!is.na(loc)&is.na(glob))) %>%
+  ungroup()
+
 # Table 1: Means
 
 mean_table <- inventories_summ %>%

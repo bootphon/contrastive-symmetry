@@ -1,10 +1,10 @@
 #contrastive-symmetry
 
-All the inventory statistics reported in [Dunbar and Dupoux 2016, "Geometric constraints on human speech sound inventories"](http://journal.frontiersin.org/article/10.3389/fpsyg.2016.01061/full), with a minor correction (see below). Also contains code to rerun a near-replication from the same data.
+All the inventory statistics reported in [Dunbar and Dupoux 2016, "Geometric constraints on human speech sound inventories"](http://journal.frontiersin.org/article/10.3389/fpsyg.2016.01061/full), with minor differences due to random subsampling (see below). Also contains code to rerun a near-replication from scratch.
 
 What's here:
 
-* **summary.feather:** median Econ, Loc, and Glob for all the natural and random inventories reported in the paper; the sample is corrected slightly: due to a minor error which did not affect the results qualitatively, the sample of random inventories used in the paper was incorrect, and has been re-done here. All numbers in Table 1 are within 0.02 of those reported in the paper, with the exception of Loc values for Whole inventories, which are off by slightly more.
+* **summary.feather:** median Econ, Loc, and Glob for all the natural and random inventories reported in the paper; the sample is slightly different: due to an error, the sample of random inventories used in the paper was lost and we've had to draw a new subsample from the same, larger set of randomly generated inventories (a similar oversight affected the rest of the analysis: see below). All numbers in Table 1 are within 0.02 of those reported in the paper, with the exception of Loc values for Whole inventories, which are off by slightly more.
 * **paper_stats.R:** a script that reads **summary.feather** and outputs Table 1 and Figure 6 from the paper
 
 * **inventories.feather.gz:** inventories from P-Base, plus all the sets of random inventories, encoded in the binary feature system described in the paper (ungzip to use: **feather** can't read gzipped files)
