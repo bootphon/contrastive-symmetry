@@ -1,4 +1,5 @@
-#contrastive-symmetry
+
+##contrastive-symmetry
 
 All the inventory statistics reported in [Dunbar and Dupoux 2016, "Geometric constraints on human speech sound inventories"](http://journal.frontiersin.org/article/10.3389/fpsyg.2016.01061/full), with minor differences due to random subsampling (see below). Also contains code to rerun a near-replication from scratch.
 
